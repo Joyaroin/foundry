@@ -64,9 +64,28 @@ green" must not be a judgement call. Every command runs from the repo root and m
 
 ## Authentication and cost
 
-The Agent SDK authenticates with **`ANTHROPIC_API_KEY`**, not a Claude Code subscription — Anthropic
-does not permit claude.ai login for SDK-built agents. Every run bills at API rates. `--budget-usd N`
-caps each individual agent call; preflight refuses if the key is unset.
+Three credential sources work, in the order the SDK resolves them. Preflight reports which one a run
+will use and refuses only when none is present.
+
+| Source | How | What it costs |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | export the key | API rates, billed per token |
+| `CLAUDE_CODE_OAUTH_TOKEN` | `claude setup-token` | your Claude Code subscription |
+| Claude Code OAuth on disk | just be logged in to Claude Code | your Claude Code subscription |
+
+**Running locally, the third row needs no setup at all** — verified 2026-08-27: with no
+`ANTHROPIC_API_KEY` set, `query()` authenticated off `~/.claude/.credentials.json` and returned
+success. Use `claude setup-token` instead for headless or scheduled runs, where a long-lived token
+beats depending on an interactive login's refresh cycle.
+
+One caveat worth knowing rather than discovering: Anthropic's SDK terms say a third-party developer
+may not **offer** claude.ai login or subscription rate limits **in a product they distribute**. That
+is about shipping foundry to other people, not about running your own agent on your own account. If
+this ever gets handed to someone else, they need their own credential, and an API key is the
+supported path for that.
+
+`--budget-usd N` caps each **individual** agent call, not the run total — a twelve-ticket spec is
+thirteen or more calls.
 
 ## Exit code
 

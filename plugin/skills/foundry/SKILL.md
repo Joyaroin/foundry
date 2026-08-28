@@ -49,7 +49,10 @@ then stop — do not offer to continue past any of them.
    cannot tell a blocked ticket from a ready one. It refuses rather than treating everything as
    unblocked and building the whole graph at once.
 
-6. **`ANTHROPIC_API_KEY` is set.** The Agent SDK does not use a Claude Code subscription.
+6. **A credential the SDK can find.** Being logged in to Claude Code is enough — it uses those
+   OAuth credentials and draws on the subscription. `CLAUDE_CODE_OAUTH_TOKEN` (from
+   `claude setup-token`) and `ANTHROPIC_API_KEY` also work. The program prints which one it found
+   and refuses only when there is none.
 
 Not a precondition, but note it here: if he passed **`--no-merge`**, the run stops at an open PR
 instead of merging. It changes nothing until the program's final phase, but the Phase 2 gate has to
@@ -116,5 +119,6 @@ the same deadlock.
   { "verify": ["npm run typecheck", "npm test"], "maxParallel": 4 }
   ```
 
-- **`ANTHROPIC_API_KEY` in the environment.** The Agent SDK authenticates with an API key, not with
-  a Claude Code subscription, so an unattended run bills at API rates. Preflight refuses without it.
+- **A credential.** Claude Code's own OAuth login is enough for a local run and costs subscription
+  quota rather than API billing; `claude setup-token` gives a long-lived token for headless runs;
+  `ANTHROPIC_API_KEY` bills at API rates. Preflight names the one it will use.

@@ -56,8 +56,12 @@ The orchestrator needs its own install once:
 
 ```bash
 cd /Users/adhamsedik/foundry/orchestrator && npm install
-export ANTHROPIC_API_KEY=...   # the Agent SDK does not use a Claude Code subscription
 ```
+
+Being logged in to Claude Code is enough — the SDK picks up those OAuth credentials, so a local
+run draws on your subscription rather than API billing. For headless or scheduled runs, use
+`claude setup-token` and export `CLAUDE_CODE_OAUTH_TOKEN`. `ANTHROPIC_API_KEY` also works and
+bills at API rates. Preflight prints which one it found.
 
 ## What it needs from a spoke repo
 

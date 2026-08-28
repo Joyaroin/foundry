@@ -2,6 +2,7 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { credential } from "./auth.js";
 import { buildLoop } from "./build.js";
 import { PLUGIN_PATH, WORKTREE_DIR } from "./config.js";
 import * as git from "./git.js";
@@ -58,8 +59,9 @@ async function preflight(repoDir: string): Promise<void> {
   if (!existsSync(PLUGIN_PATH)) {
     problems.push(`the foundry plugin is missing at ${PLUGIN_PATH}`);
   }
-  if (!process.env["ANTHROPIC_API_KEY"]) {
-    problems.push("ANTHROPIC_API_KEY is unset — the Agent SDK authenticates with an API key, not a Claude Code subscription");
+  const cred = credential();
+  if (cred.kind === "none") {
+    problems.push(cred.detail);
   }
   if (problems.length) {
     die(`preflight failed:\n${problems.map((p) => `  - ${p}`).join("\n")}`);
@@ -88,6 +90,7 @@ async function main(): Promise<void> {
   await gh.ensureLabels(repoDir);
 
   log(`foundry: ${repo}, spec #${spec}, base ${base}`);
+  log(`auth   : ${credential().detail}`);
 
   // Phase 3 — tickets.
   if (skipTickets) {

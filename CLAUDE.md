@@ -54,6 +54,16 @@ The hub holds no per-project state. Every issue, branch and PR belongs to the sp
 executes in. Nothing project-specific gets written here — that was the failure mode that pushed
 project status out of the global `CLAUDE.md` in the first place.
 
+## Auth
+
+Local runs use Claude Code's own OAuth credentials — verified 2026-08-27, `query()` with no
+`ANTHROPIC_API_KEY` authenticated off `~/.claude/.credentials.json` and succeeded. So a run costs
+subscription quota, not API billing. `src/auth.ts` reports which of the three sources preflight
+found; it does not do the resolving, the SDK does.
+
+Do not reintroduce a hard `ANTHROPIC_API_KEY` requirement. An earlier draft had one, and it was
+wrong: it would have refused to start a run that authenticates perfectly well.
+
 ## Rules for the unattended half
 
 - **The spec approval is the only gate.** Adding a second place that asks Adham a question defeats
