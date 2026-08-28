@@ -21,14 +21,17 @@ something, the honest question is not "does this work" but "could he change it n
 
 ## Self-containment
 
-This plugin reads nothing from `~/.claude` and syncs with nothing there. The four pipeline skills
-are **vendored copies** and have already diverged from their originals on purpose:
+This plugin reads nothing from `~/.claude` and syncs with nothing there. The vendored skills have
+already diverged from their originals on purpose:
 
 - `to-tickets` had its "quiz the user" step replaced — foundry publishes tickets unattended
 - `to-tickets` lost its local-markdown tracker branch — GitHub Issues only
 - `to-spec` / `to-tickets` point at `foundry/references/tracker.md` instead of a per-repo setup skill
-- `implement` inlines the TDD and self-review discipline instead of calling `/tdd` and `/code-review`,
-  which this plugin does not ship
+- `implement` points at the bundled `tdd` skill, and inlines the self-review discipline instead of
+  calling `code-review`, which this plugin does not ship
+- `tdd` no longer asks anyone to confirm seams — the spec's Testing Decisions settled them, and a
+  builder that asks a question stalls its whole round. Its `codebase-design` and `code-review`
+  references are now conditional or redirected for the same reason
 
 Do not "fix" these back toward the originals, and do not pull updates from `~/.claude/skills/`.
 

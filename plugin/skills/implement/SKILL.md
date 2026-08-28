@@ -6,12 +6,13 @@ disable-model-invocation: true
 
 Implement the work described by the user in the spec or tickets.
 
-Work test-first at the seams the spec's **Testing Decisions** already named. Do not invent a new
-seam mid-implementation — if the named one turns out to be wrong, say so rather than quietly
-testing somewhere else. Red, green, refactor, one behaviour at a time. Test external behaviour
-only; a test that asserts on internals fails the next refactor and teaches you nothing.
+Work test-first, following the bundled **`tdd`** skill — it ships with this plugin and it is the
+reference for what a good test is, where tests go, and the anti-patterns. Read it before the first
+test, not after.
 
-If a `tdd` skill is installed, use it — this is a compressed version of the same discipline.
+The seams are the ones the spec's **Testing Decisions** already named. Do not invent a new seam
+mid-implementation; if the named one turns out to be wrong, say so and stop rather than quietly
+testing somewhere else.
 
 Run typechecking regularly and single test files regularly. Run the full suite once at the end.
 

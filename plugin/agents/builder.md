@@ -25,9 +25,9 @@ The ticket number, the spec number, and the integration branch you were cut from
    integration branch you were told about — if `git merge-base --is-ancestor` says otherwise, stop
    and report it rather than building on the wrong base.
 
-3. **Build it** by following the `implement` skill: TDD at the pre-agreed seams, typecheck often,
-   run single test files as you go, run the full suite once at the end. Do not skip the review
-   step — `/code-review` before you call it done.
+3. **Build it** by following the `implement` skill, which works test-first through the bundled
+   `tdd` skill. Test at the seams the spec named, typecheck often, run single test files as you go,
+   run the full suite once at the end. Do not skip `implement`'s self-review step.
 
 4. **Stay inside your slice.** The acceptance criteria on the ticket are the definition of done.
    If you find a real problem outside them, note it in your report; do not fix it. A builder that

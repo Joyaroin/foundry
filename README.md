@@ -18,7 +18,7 @@ anything until it is finished.
 
 ## Hub and spoke
 
-This repo is the **hub**. It ships the orchestrator, the four skills it drives, and the builder
+This repo is the **hub**. It ships the orchestrator, the five skills it drives, and the builder
 agent, as a Claude Code plugin. It is entirely self-contained — it does not read anything from
 `~/.claude` and nothing here needs to stay in sync with your global setup.
 
@@ -62,6 +62,7 @@ Checked in Phase 0, all refuse-to-run:
 | `plugin/skills/foundry/` | the orchestrator — phases, the build loop, the stop conditions |
 | `plugin/skills/foundry/references/tracker.md` | the GitHub issue conventions, and the `gh` commands |
 | `plugin/skills/{grilling,to-spec,to-tickets,implement}/` | the four pipeline stages |
+| `plugin/skills/tdd/` | the testing discipline `implement` works to |
 | `plugin/agents/builder.md` | builds exactly one ticket, in its own worktree, on its own branch |
 | `plugin/scripts/frontier.sh` | which tickets can be built right now |
 
