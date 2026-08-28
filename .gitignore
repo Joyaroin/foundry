@@ -2,5 +2,3 @@
 node_modules/
 .claude/worktrees/
 .scratch/
-.foundry-report.json
-.foundry-tickets.json

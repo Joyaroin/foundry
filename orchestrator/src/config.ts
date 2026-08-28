@@ -12,9 +12,6 @@ export const MAX_PARALLEL = 4;
 /** Consecutive no-progress rounds before the loop declares a stall. */
 export const STALL_ROUNDS = 2;
 
-/** Where a builder leaves its report, relative to its worktree root. */
-export const REPORT_FILE = ".foundry-report.json";
-
 /** Where builder worktrees live in the spoke repo. Must be gitignored. */
 export const WORKTREE_DIR = ".claude/worktrees";
 

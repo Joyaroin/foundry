@@ -22,7 +22,7 @@ is a function call.
 
 | Decision | Who makes it |
 |---|---|
-| What the tickets are, and their dependency edges | **model** (`tickets.ts`, as validated JSON) |
+| What the tickets are, and their dependency edges | **model** (`tickets.ts`, schema-enforced) |
 | The code inside one ticket | **model** (`build.ts`, one builder per worktree) |
 | Which tickets are eligible right now | code — `frontier.ts` |
 | How many run at once | code — `MAX_PARALLEL`, `config.ts` |

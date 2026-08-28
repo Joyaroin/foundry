@@ -10,7 +10,11 @@ export type Ticket = {
   state: "open" | "closed";
 };
 
-/** What a builder writes to disk when it finishes. Read by the orchestrator, never parsed out of prose. */
+/**
+ * What a builder returns when it finishes. The SDK enforces this shape against a JSON Schema and
+ * retries the model on a mismatch, so control flow never interprets prose. `ticket` and `branch`
+ * are filled in by the orchestrator, which already knows them.
+ */
 export type BuilderReport = {
   outcome: "success" | "failure";
   ticket: number;

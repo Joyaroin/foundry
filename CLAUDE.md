@@ -40,8 +40,8 @@ already diverged from their originals on purpose:
 - `implement` points at the bundled `tdd` skill, and inlines the self-review discipline instead of
   calling `code-review`, which this plugin does not ship
 - `to-tickets` is invoked by the orchestrator with an override forbidding it to touch the tracker:
-  it writes JSON, and the program publishes. A model that calls `gh issue create` here would put a
-  hallucinated dependency edge into the frontier and corrupt the whole run
+  it returns a breakdown, and the program publishes. A model that calls `gh issue create` here
+  would put a hallucinated dependency edge into the frontier and corrupt the whole run
 - `tdd` no longer asks anyone to confirm seams — the spec's Testing Decisions settled them, and a
   builder that asks a question stalls its whole round. Its `codebase-design` and `code-review`
   references are now conditional or redirected for the same reason
@@ -63,6 +63,20 @@ found; it does not do the resolving, the SDK does.
 
 Do not reintroduce a hard `ANTHROPIC_API_KEY` requirement. An earlier draft had one, and it was
 wrong: it would have refused to start a run that authenticates perfectly well.
+
+## Model-to-code handoffs
+
+Both agent calls use `outputFormat: { type: "json_schema" }`. The SDK validates and retries on a
+mismatch, so control flow never interprets prose. Verified live 2026-08-27.
+
+An earlier draft had each agent write a JSON file the program then read. Do not go back to that: it
+added a failure mode (model forgets the file), needed hand-written validation the schema does for
+free, and its stated justification — that the file survives for debugging — was false, since the
+builder's worktree is deleted in a `finally` block.
+
+Schemas describe, they never verify. Keep the `git.branchExists()` cross-check and keep "green"
+coming from `git.verify()` exit codes. And keep the backwards-edge check in `tickets.ts`: a JSON
+Schema cannot express it, and it is what makes a dependency cycle unrepresentable.
 
 ## Rules for the unattended half
 

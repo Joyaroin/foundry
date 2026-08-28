@@ -1,7 +1,5 @@
-import { readFile, rm } from "node:fs/promises";
-import { join } from "node:path";
 import { agent } from "./agent.js";
-import { MAX_PARALLEL, REPORT_FILE, STALL_ROUNDS } from "./config.js";
+import { MAX_PARALLEL, STALL_ROUNDS } from "./config.js";
 import { frontier, open, stranded } from "./frontier.js";
 import * as git from "./git.js";
 import * as gh from "./gh.js";
@@ -14,6 +12,40 @@ import type { BuilderReport, RunResult, SpokeConfig, Ticket, TicketOutcome } fro
  * which tickets are eligible, how many run at once, what merges, what counts as green,
  * what closes, what is handed back, and when the loop stops.
  */
+
+/**
+ * The builder's report shape, enforced by the SDK rather than parsed out of prose or a file the
+ * builder has to remember to write. `ticket` and `branch` are set by the orchestrator afterwards —
+ * they are facts it already knows, not claims to accept from the builder.
+ */
+const REPORT_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  additionalProperties: false,
+  required: ["outcome", "summary"],
+  properties: {
+    outcome: {
+      type: "string",
+      enum: ["success", "failure"],
+      description: "success only if the ticket is built, committed to your branch, and its tests pass.",
+    },
+    summary: { type: "string", description: "One or two sentences on the behaviour that now works." },
+    error: {
+      type: "string",
+      description: "Only when outcome is failure: what blocked you, what you tried, and the exact error.",
+    },
+    noticed: {
+      type: "array",
+      items: { type: "string" },
+      description: "Real problems outside this ticket's scope that you deliberately did not fix.",
+    },
+  },
+};
+
+function isReport(v: unknown): v is Pick<BuilderReport, "outcome" | "summary"> & Partial<BuilderReport> {
+  if (typeof v !== "object" || v === null) return false;
+  const outcome = (v as { outcome?: unknown }).outcome;
+  return outcome === "success" || outcome === "failure";
+}
 
 function slug(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
@@ -37,15 +69,11 @@ function builderPrompt(t: Ticket, spec: number, integration: string, branch: str
     `   do NOT close the issue, and do NOT open a pull request. The orchestrator does all of that.`,
     `4. Stay inside your ticket's acceptance criteria. Note anything else you find; do not fix it.`,
     ``,
-    `Finally, write ${REPORT_FILE} in your worktree root, as JSON of exactly this shape:`,
-    ``,
-    `{"outcome":"success"|"failure","ticket":${t.number},"branch":"${branch}",`,
-    ` "summary":"one or two sentences on the behaviour that now works",`,
-    ` "error":"only when outcome is failure: what blocked you, and the exact error",`,
-    ` "noticed":["real problems outside this ticket you deliberately did not fix"]}`,
+    `Then return the structured report describing what you did.`,
     ``,
     `Report "failure" honestly. A ticket handed back with a clear error costs one ticket.`,
-    `A ticket reported green that is not green costs the whole round.`,
+    `A ticket reported green that is not green costs the whole round: it merges, the post-merge`,
+    `gates fail, and the orchestrator reverts work that had nothing wrong with it.`,
   ].join("\n");
 }
 
@@ -65,21 +93,20 @@ async function build(
     const run = await agent(builderPrompt(t, spec, integration, branch), {
       cwd: worktree,
       maxTurns: 300,
+      schema: REPORT_SCHEMA,
       ...(budgetUsd !== undefined ? { maxBudgetUsd: budgetUsd } : {}),
     });
 
-    let report: BuilderReport;
-    try {
-      report = JSON.parse(await readFile(join(worktree, REPORT_FILE), "utf8")) as BuilderReport;
-    } catch {
+    if (!isReport(run.structured)) {
       return {
         outcome: "failure",
         ticket: t.number,
         branch,
         summary: "",
-        error: `builder wrote no readable ${REPORT_FILE} (${run.detail}). Last words:\n${run.text.slice(-1500)}`,
+        error: `builder returned no usable report (${run.detail}). Last words:\n${run.text.slice(-1500)}`,
       };
     }
+    const report = run.structured;
 
     // The report is the builder's claim; the branch existing is the fact. Trust the fact.
     if (report.outcome === "success" && !(await git.branchExists(branch, repoDir))) {
@@ -87,7 +114,7 @@ async function build(
         outcome: "failure",
         ticket: t.number,
         branch,
-        summary: report.summary ?? "",
+        summary: report.summary,
         error: `builder reported success but never created branch ${branch}`,
       };
     }
@@ -198,7 +225,6 @@ export async function buildLoop(opts: {
       }
     }
 
-    await rm(join(repoDir, REPORT_FILE), { force: true });
 
     quietRounds = closedThisRound === 0 ? quietRounds + 1 : 0;
     if (quietRounds >= STALL_ROUNDS) {

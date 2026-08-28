@@ -13,12 +13,19 @@ type Streamed = {
   type: string;
   subtype?: string;
   message?: { content?: unknown[] };
+  structured_output?: unknown;
   [k: string]: unknown;
 };
 
 export type AgentRun = {
   /** Concatenated assistant text. Useful for logs and failure reports, never parsed for control flow. */
   text: string;
+  /**
+   * The schema-validated object, when `schema` was passed. The SDK enforces the shape and
+   * retries the model on a mismatch, so this is either the right shape or absent — control
+   * flow never has to interpret prose to find out what happened.
+   */
+  structured?: unknown;
   /** False when the SDK ended the session on an error rather than completing the task. */
   ok: boolean;
   detail: string;
@@ -31,6 +38,8 @@ export type AgentOptions = {
   maxTurns?: number;
   /** Hard ceiling in USD for this one call. The SDK aborts past it. */
   maxBudgetUsd?: number;
+  /** JSON Schema the final answer must match. The SDK validates and retries; we never parse prose. */
+  schema?: Record<string, unknown>;
   onText?: (text: string) => void;
 };
 
@@ -38,6 +47,7 @@ const DEFAULT_TOOLS = ["Read", "Write", "Edit", "Glob", "Grep", "Bash", "TodoWri
 
 export async function agent(prompt: string, opts: AgentOptions): Promise<AgentRun> {
   const chunks: string[] = [];
+  let structured: unknown;
   let ok = true;
   let detail = "completed";
 
@@ -56,6 +66,7 @@ export async function agent(prompt: string, opts: AgentOptions): Promise<AgentRu
         settingSources: [],
         ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
         ...(opts.maxBudgetUsd !== undefined ? { maxBudgetUsd: opts.maxBudgetUsd } : {}),
+        ...(opts.schema ? { outputFormat: { type: "json_schema" as const, schema: opts.schema } } : {}),
       },
     }) as AsyncIterable<Streamed>) {
       if (raw.type === "assistant" && Array.isArray(raw.message?.content)) {
@@ -66,7 +77,9 @@ export async function agent(prompt: string, opts: AgentOptions): Promise<AgentRu
           }
         }
       } else if (raw.type === "result") {
+        if (raw.structured_output !== undefined) structured = raw.structured_output;
         // Anything other than success means the session ended badly, not that the task failed its gates.
+        // `error_max_structured_output_retries` means the model could not satisfy the schema.
         if (raw.subtype && raw.subtype !== "success") {
           ok = false;
           detail = `session ended: ${raw.subtype}`;
@@ -78,5 +91,5 @@ export async function agent(prompt: string, opts: AgentOptions): Promise<AgentRu
     detail = e instanceof Error ? e.message : String(e);
   }
 
-  return { text: chunks.join("\n").trim(), ok, detail };
+  return { text: chunks.join("\n").trim(), ...(structured !== undefined ? { structured } : {}), ok, detail };
 }
