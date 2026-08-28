@@ -42,6 +42,21 @@ async function loadConfig(repoDir: string): Promise<SpokeConfig> {
   if (!Array.isArray(config.verify) || config.verify.length === 0) {
     die(`foundry.config.json declares no "verify" commands`);
   }
+  for (const key of ["builderSetup", "builderTeardown"] as const) {
+    const v = config[key];
+    if (v !== undefined && (!Array.isArray(v) || v.some((c) => typeof c !== "string"))) {
+      die(`foundry.config.json: "${key}" must be an array of shell commands`);
+    }
+  }
+  for (const key of ["builderEnv", "verifyEnv"] as const) {
+    const v = config[key];
+    if (
+      v !== undefined &&
+      (typeof v !== "object" || v === null || Object.values(v).some((x) => typeof x !== "string"))
+    ) {
+      die(`foundry.config.json: "${key}" must be an object of string values`);
+    }
+  }
   return config;
 }
 

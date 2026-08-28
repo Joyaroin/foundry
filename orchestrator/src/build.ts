@@ -1,5 +1,6 @@
 import { agent } from "./agent.js";
 import { MAX_PARALLEL, STALL_ROUNDS } from "./config.js";
+import { tryShell } from "./sh.js";
 import { frontier, open, stranded } from "./frontier.js";
 import * as git from "./git.js";
 import * as gh from "./gh.js";
@@ -47,6 +48,27 @@ function isReport(v: unknown): v is Pick<BuilderReport, "outcome" | "summary"> &
   return outcome === "success" || outcome === "failure";
 }
 
+/**
+ * Two placeholders are available in builderEnv, builderSetup and builderTeardown:
+ *
+ * - `{ticket}`  — the ticket number. This is what makes one builder's resources distinct from its
+ *                 siblings'. A repo whose tests share a database needs it.
+ * - `{repoRoot}` — the main checkout. A fresh worktree has no `node_modules` (it is gitignored),
+ *                 so setup usually needs to link or install dependencies, and linking to the main
+ *                 checkout is far cheaper than an install per ticket.
+ */
+function expand(value: string, ticket: number, repoRoot: string): string {
+  return value.replaceAll("{ticket}", String(ticket)).replaceAll("{repoRoot}", repoRoot);
+}
+
+function expandAll(
+  values: Record<string, string>,
+  ticket: number,
+  repoRoot: string,
+): Record<string, string> {
+  return Object.fromEntries(Object.entries(values).map(([k, v]) => [k, expand(v, ticket, repoRoot)]));
+}
+
 function slug(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
 }
@@ -83,17 +105,36 @@ async function build(
   spec: number,
   repoDir: string,
   integration: string,
+  config: SpokeConfig,
   budgetUsd: number | undefined,
+  log: (msg: string) => void,
 ): Promise<BuilderReport> {
   const branch = `foundry/${t.number}-${slug(t.title)}`;
+  const env = config.builderEnv ? expandAll(config.builderEnv, t.number, repoDir) : undefined;
   let worktree: string | undefined;
 
   try {
     worktree = await git.addWorktree(repoDir, t.number, integration);
+
+    // A builder that cannot get its own resources must not fall back to a sibling's.
+    for (const command of config.builderSetup ?? []) {
+      const resolved = expand(command, t.number, repoDir);
+      const r = await tryShell(resolved, worktree, env);
+      if (!r.ok) {
+        return {
+          outcome: "failure",
+          ticket: t.number,
+          branch,
+          summary: "",
+          error: `builder setup failed: ${resolved}\n${[r.stdout, r.stderr].filter(Boolean).join("\n").slice(-2000)}`,
+        };
+      }
+    }
     const run = await agent(builderPrompt(t, spec, integration, branch), {
       cwd: worktree,
       maxTurns: 300,
       schema: REPORT_SCHEMA,
+      ...(env ? { env } : {}),
       ...(budgetUsd !== undefined ? { maxBudgetUsd: budgetUsd } : {}),
     });
 
@@ -128,7 +169,15 @@ async function build(
       error: e instanceof Error ? e.message : String(e),
     };
   } finally {
-    if (worktree) await git.removeWorktree(repoDir, worktree);
+    // Teardown runs pass or fail, so a failed ticket does not leak its database.
+    if (worktree) {
+      for (const command of config.builderTeardown ?? []) {
+        const resolved = expand(command, t.number, repoDir);
+        const r = await tryShell(resolved, worktree, env);
+        if (!r.ok) log(`  #${t.number} teardown failed (not fatal): ${resolved}`);
+      }
+      await git.removeWorktree(repoDir, worktree);
+    }
   }
 }
 
@@ -207,7 +256,7 @@ export async function buildLoop(opts: {
 
     // Builders run concurrently; landing is serialized below.
     const reports = await Promise.all(
-      batch.map((t) => build(t, spec, repoDir, integration, opts.budgetUsd)),
+      batch.map((t) => build(t, spec, repoDir, integration, config, opts.budgetUsd, log)),
     );
 
     let closedThisRound = 0;

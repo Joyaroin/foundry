@@ -50,4 +50,25 @@ export type SpokeConfig = {
   verify: string[];
   /** Optional cap on concurrent builders. Defaults to MAX_PARALLEL. */
   maxParallel?: number;
+
+  /**
+   * Environment for the `verify` commands, which run in the MAIN working tree after each merge.
+   * Without it a repo whose suite touches a database runs it against whatever the developer's own
+   * `.env` points at — their real local data, repeatedly, unattended. Point it somewhere disposable.
+   */
+  verifyEnv?: Record<string, string>;
+
+  /**
+   * Per-builder isolation, for a repo whose tests touch a shared resource — a database being the
+   * usual one. Without it, concurrent builders all run the suite against the same instance and
+   * fail for reasons that have nothing to do with their code.
+   *
+   * `{ticket}` in any value is replaced with the ticket number, which is what makes each builder's
+   * resource distinct. Setup runs before the builder starts, teardown always runs after.
+   */
+  builderEnv?: Record<string, string>;
+  /** Run in the builder's worktree, with builderEnv applied, before it starts. A failure fails the ticket. */
+  builderSetup?: string[];
+  /** Run after the builder finishes, pass or fail. Best-effort: a failure here is logged, not fatal. */
+  builderTeardown?: string[];
 };

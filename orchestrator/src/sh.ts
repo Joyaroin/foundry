@@ -36,6 +36,26 @@ export async function tryRun(
 }
 
 /** Run a shell string from the spoke's config (`npm run typecheck`). Reports failure, never throws. */
-export async function tryShell(command: string, cwd: string): Promise<RunOutcome> {
-  return tryRun("/bin/sh", ["-c", command], cwd);
+export async function tryShell(
+  command: string,
+  cwd: string,
+  env?: Record<string, string>,
+): Promise<RunOutcome> {
+  if (!env) return tryRun("/bin/sh", ["-c", command], cwd);
+  try {
+    const { stdout, stderr } = await exec("/bin/sh", ["-c", command], {
+      cwd,
+      maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, ...env },
+    });
+    return { ok: true, stdout: stdout.trim(), stderr: stderr.trim(), code: 0 };
+  } catch (e) {
+    const err = e as { stdout?: string; stderr?: string; code?: number; message: string };
+    return {
+      ok: false,
+      stdout: (err.stdout ?? "").trim(),
+      stderr: (err.stderr ?? err.message).trim(),
+      code: typeof err.code === "number" ? err.code : 1,
+    };
+  }
 }

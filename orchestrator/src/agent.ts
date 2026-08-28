@@ -40,6 +40,8 @@ export type AgentOptions = {
   maxBudgetUsd?: number;
   /** JSON Schema the final answer must match. The SDK validates and retries; we never parse prose. */
   schema?: Record<string, unknown>;
+  /** Extra environment for this agent, merged over the parent's. Per-builder resource isolation. */
+  env?: Record<string, string>;
   onText?: (text: string) => void;
 };
 
@@ -67,6 +69,7 @@ export async function agent(prompt: string, opts: AgentOptions): Promise<AgentRu
         ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
         ...(opts.maxBudgetUsd !== undefined ? { maxBudgetUsd: opts.maxBudgetUsd } : {}),
         ...(opts.schema ? { outputFormat: { type: "json_schema" as const, schema: opts.schema } } : {}),
+        ...(opts.env ? { env: { ...process.env, ...opts.env } as Record<string, string> } : {}),
       },
     }) as AsyncIterable<Streamed>) {
       if (raw.type === "assistant" && Array.isArray(raw.message?.content)) {

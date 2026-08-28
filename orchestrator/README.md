@@ -62,6 +62,43 @@ agent is explicitly forbidden from touching the tracker: it writes JSON, the pro
 `verify` is how the program knows whether work is green. It is declared, never inferred — "is it
 green" must not be a judgement call. Every command runs from the repo root and must exit 0.
 
+### Per-builder isolation
+
+Two facts bite any repo with real tests:
+
+1. **A fresh worktree has no `node_modules`** — it is gitignored, so it is not in the checkout.
+2. **Concurrent builders share every external resource**, a database above all. Four builders running
+   one suite against one Postgres fail for reasons that have nothing to do with their code.
+
+`builderSetup` / `builderEnv` / `builderTeardown` fix both. Setup runs in the worktree before the
+builder starts and a failure fails the ticket; teardown always runs, so a failed ticket does not leak
+its database. Two placeholders are available in all three: **`{ticket}`** (what makes a builder's
+resources distinct) and **`{repoRoot}`** (the main checkout — linking to its `node_modules` is far
+cheaper than an install per ticket).
+
+`verifyEnv` does the same for the gates, which run in the **main** working tree. Without it the
+post-merge suite runs against whatever the developer's own `.env` points at — their real local data,
+repeatedly, unattended.
+
+A worked example, from a Next.js app whose tests need Postgres:
+
+```json
+{
+  "verify": ["npm run typecheck", "npm test"],
+  "maxParallel": 3,
+  "verifyEnv":  { "DATABASE_URL": "postgres://user:pw@localhost:5432/app_foundry" },
+  "builderEnv": { "DATABASE_URL": "postgres://user:pw@localhost:5432/app_t{ticket}" },
+  "builderSetup": [
+    "ln -sfn {repoRoot}/node_modules node_modules",
+    "docker exec app-postgres createdb -U user app_t{ticket}",
+    "npm run db:migrate"
+  ],
+  "builderTeardown": ["docker exec app-postgres dropdb --if-exists -U user app_t{ticket}"]
+}
+```
+
+A repo whose tests touch nothing shared needs none of it — `verify` alone is enough.
+
 ## Authentication and cost
 
 Three credential sources work, in the order the SDK resolves them. Preflight reports which one a run

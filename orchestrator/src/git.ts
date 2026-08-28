@@ -78,13 +78,14 @@ export async function push(branch: string, cwd: string): Promise<void> {
 /**
  * The spoke's declared gate commands. Green means every one exits 0.
  * They are declared in foundry.config.json, never inferred — "is it green" must not be a judgment call.
+ * `verifyEnv` keeps a database-backed suite off the developer's own local data.
  */
 export async function verify(
   config: SpokeConfig,
   cwd: string,
 ): Promise<{ ok: boolean; failed?: string; detail?: string }> {
   for (const command of config.verify) {
-    const r = await tryShell(command, cwd);
+    const r = await tryShell(command, cwd, config.verifyEnv);
     if (!r.ok) {
       const detail = [r.stdout, r.stderr].filter(Boolean).join("\n").slice(-4000);
       return { ok: false, failed: command, detail };
