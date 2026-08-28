@@ -1,0 +1,137 @@
+#!/usr/bin/env -S npx tsx
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { buildLoop } from "./build.js";
+import { PLUGIN_PATH, WORKTREE_DIR } from "./config.js";
+import * as git from "./git.js";
+import * as gh from "./gh.js";
+import { ship } from "./ship.js";
+import { writeTickets } from "./tickets.js";
+import type { SpokeConfig } from "./types.js";
+
+/**
+ * foundry run <spec-issue> [--no-merge] [--budget-usd N] [--skip-tickets]
+ *
+ * The unattended half. Phases 0-2 (preflight, grilling, spec) happen in Claude Code,
+ * because grilling needs a human; this program starts once the spec is approved.
+ */
+
+const log = (msg: string) => console.log(msg);
+const die = (msg: string): never => {
+  console.error(`foundry: ${msg}`);
+  process.exit(1);
+};
+
+function usage(): never {
+  console.error("usage: foundry run <spec-issue> [--no-merge] [--budget-usd N] [--skip-tickets]");
+  process.exit(2);
+}
+
+async function loadConfig(repoDir: string): Promise<SpokeConfig> {
+  const path = join(repoDir, "foundry.config.json");
+  if (!existsSync(path)) {
+    die(
+      `no foundry.config.json at the repo root.\n` +
+        `It declares the gate commands that decide whether work is green — foundry will not guess them.\n` +
+        `Minimum: {"verify":["npm run typecheck","npm test"]}`,
+    );
+  }
+  const config = JSON.parse(await readFile(path, "utf8")) as SpokeConfig;
+  if (!Array.isArray(config.verify) || config.verify.length === 0) {
+    die(`foundry.config.json declares no "verify" commands`);
+  }
+  return config;
+}
+
+async function preflight(repoDir: string): Promise<void> {
+  const problems: string[] = [];
+
+  if (!(await git.isClean(repoDir))) {
+    problems.push("the working tree is dirty — builders branch off HEAD and would inherit uncommitted work");
+  }
+  const ignore = join(repoDir, ".gitignore");
+  const ignored = existsSync(ignore) ? await readFile(ignore, "utf8") : "";
+  if (!/^\s*\.claude\/?\s*$/m.test(ignored) && !ignored.includes(WORKTREE_DIR)) {
+    problems.push(`.claude/ is not gitignored — builder worktrees live in ${WORKTREE_DIR} and would be committed`);
+  }
+  if (!existsSync(PLUGIN_PATH)) {
+    problems.push(`the foundry plugin is missing at ${PLUGIN_PATH}`);
+  }
+  if (!process.env["ANTHROPIC_API_KEY"]) {
+    problems.push("ANTHROPIC_API_KEY is unset — the Agent SDK authenticates with an API key, not a Claude Code subscription");
+  }
+  if (problems.length) {
+    die(`preflight failed:\n${problems.map((p) => `  - ${p}`).join("\n")}`);
+  }
+}
+
+async function main(): Promise<void> {
+  const argv = process.argv.slice(2);
+  if (argv[0] !== "run") usage();
+
+  const spec = Number(argv[1]);
+  if (!Number.isInteger(spec) || spec <= 0) usage();
+
+  const noMerge = argv.includes("--no-merge");
+  const skipTickets = argv.includes("--skip-tickets");
+  const budgetIdx = argv.indexOf("--budget-usd");
+  const budgetUsd = budgetIdx >= 0 ? Number(argv[budgetIdx + 1]) : undefined;
+  if (budgetIdx >= 0 && !Number.isFinite(budgetUsd)) usage();
+
+  const repoDir = await git.repoRoot(process.cwd());
+  await preflight(repoDir);
+
+  const config = await loadConfig(repoDir);
+  const repo = await gh.repoSlug(repoDir);
+  const base = await gh.defaultBranch(repoDir);
+  await gh.ensureLabels(repoDir);
+
+  log(`foundry: ${repo}, spec #${spec}, base ${base}`);
+
+  // Phase 3 — tickets.
+  if (skipTickets) {
+    log("skipping ticket creation (--skip-tickets)");
+  } else {
+    const created = await writeTickets(spec, repoDir);
+    log(`wrote ${created.length} tickets: ${created.map((n) => `#${n}`).join(", ")}`);
+  }
+
+  // Phase 4 — the build loop, on its own integration branch.
+  const integration = `foundry/spec-${spec}`;
+  if (await git.branchExists(integration, repoDir)) {
+    await git.switchTo(integration, repoDir);
+  } else {
+    await git.createBranch(integration, base, repoDir);
+  }
+
+  const loop = await buildLoop({
+    spec,
+    repoDir,
+    repo,
+    integration,
+    config,
+    ...(budgetUsd !== undefined ? { budgetUsd } : {}),
+    log,
+  });
+
+  // Phase 5 — PR, and the merge decision.
+  const result = await ship({ spec, repoDir, integration, base, config, noMerge, loop, log });
+
+  await git.pruneWorktrees(repoDir);
+
+  log("");
+  log(`stop condition : ${result.stop}`);
+  log(`closed         : ${result.closed.length}`);
+  log(`handed back    : ${result.handedBack.length}`);
+  log(`still blocked  : ${result.stillBlocked.length}`);
+  log(`pull request   : #${result.prNumber}`);
+  log(`merged         : ${result.merged ? "yes" : `no — ${result.mergeSkippedBecause}`}`);
+  for (const t of result.handedBack) log(`  handed back #${t.ticket}: ${t.reason?.split("\n")[0] ?? ""}`);
+  for (const t of result.stillBlocked) log(`  blocked #${t.number}: ${t.title}`);
+
+  // A run that did not finish is not a success, and the exit code must say so.
+  process.exit(result.stop === "done" && result.handedBack.length === 0 ? 0 : 1);
+}
+
+main().catch((e) => die(e instanceof Error ? e.message : String(e)));

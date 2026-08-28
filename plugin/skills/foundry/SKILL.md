@@ -28,31 +28,32 @@ run, not a reason to interrupt him.
 
 ## 0. Preflight
 
-Every one of these is refuse-to-run. Check them all, report every failure at once, then stop.
-Do not offer to continue past any of them.
+The program runs its own preflight and refuses on anything it finds. Yours exists so a failure
+surfaces *before* the grilling is spent, not after. Check these, report every failure at once,
+then stop — do not offer to continue past any of them.
 
-1. **You are inside the target repo.** `git rev-parse --show-toplevel` must succeed.
-   Worktree isolation builds each builder's worktree from the session's working directory
-   *before* the agent starts, and nothing you pass in later can redirect it. Started outside a
-   repo, the run dies after the grilling has already been spent.
+1. **You are inside the target repo.** `git rev-parse --show-toplevel` must succeed, and it must be
+   the repo the feature belongs in.
 
-2. **The working tree is clean.** `git status --porcelain` is empty. Builders branch off HEAD;
-   uncommitted work would be silently inherited by every one of them.
+2. **The working tree is clean.** `git status --porcelain` is empty. Builders branch off the
+   integration branch; uncommitted work would be inherited by every one of them.
 
-3. **`.claude/` is gitignored here.** Worktrees are created at `<repo>/.claude/worktrees/` and are
-   untracked. `/implement` tells builders to commit, and agents reach for `git add -A` — without
-   this, one slice commits its siblings' entire working trees. Add the line if it is missing.
+3. **`.claude/` is gitignored here.** Builder worktrees are created at `<repo>/.claude/worktrees/`.
+   Without this, one slice commits its siblings' entire working trees. Add the line if missing.
 
-4. **`gh` is authenticated** and the repo has the five triage labels. See
-   `references/tracker.md` for the label list and the commands to create them.
+4. **`foundry.config.json` exists at the repo root** and declares `verify` commands. This is how the
+   program knows what "green" means; it will not guess. See **What the program needs** below.
 
-5. **Issue dependencies are readable.** `scripts/frontier.sh` needs them to tell a blocked ticket
-   from a ready one. You cannot verify this until tickets exist, so it is checked at the top of
-   Phase 4 instead — but say now that it will be.
+5. **`gh` is authenticated**, and **GitHub issue dependencies are readable on this repo** — the
+   frontier is computed from `issue_dependencies_summary.blocked_by`, and without it the program
+   cannot tell a blocked ticket from a ready one. It refuses rather than treating everything as
+   unblocked and building the whole graph at once.
+
+6. **`ANTHROPIC_API_KEY` is set.** The Agent SDK does not use a Claude Code subscription.
 
 Not a precondition, but note it here: if he passed **`--no-merge`**, the run stops at an open PR
-instead of merging. It changes nothing until Phase 5, but the Phase 2 gate has to say which way
-this run is going — the thing he approves must be the thing that happens.
+instead of merging. It changes nothing until the program's final phase, but the Phase 2 gate has to
+say which way this run is going — the thing he approves must be the thing that happens.
 
 ## 1. Grill (attended)
 
@@ -79,133 +80,41 @@ to a reported failure.
 
 If he does not approve, take his corrections and revise the spec. Do not proceed on a maybe.
 
-## 3. Tickets (unattended)
+## 3-5. Hand off to the program
 
-Invoke the bundled `to-tickets` skill against the spec issue, with one change:
-
-> **Skip its "Quiz the user" step entirely.** Adham has chosen to have tickets written for him.
-> Draft the slices, satisfy the vertical-slice rules, and publish.
-
-Publish each ticket as a **sub-issue of the spec** with the `ready-for-agent` label, in dependency
-order so blockers exist before the tickets that name them. Record every blocking edge as a
-**native GitHub dependency** — the prose "Blocked by" line is for humans; `frontier.sh` reads the
-dependency. `references/tracker.md` has both commands.
-
-Then say, once, what you built: the ticket count, and the shape of the graph (how many can start
-immediately, how deep the longest chain runs). This is a status line, not a question.
-
-## 4. Build loop (unattended)
-
-### Set up
-
-Run `scripts/frontier.sh <spec> --check`. If it fails, stop and report — a run that cannot read
-blockers would treat a dependency chain as parallel work and build ticket 4 before ticket 1.
-
-Create the integration branch off the default branch and stay on it:
+Everything after the spec approval is a TypeScript program built on the Claude Agent SDK, not
+instructions you follow. Run it from the repo root:
 
 ```bash
-git switch -c "foundry/spec-<spec>"
+cd <the spoke repo>
+npx tsx /Users/adhamsedik/foundry/orchestrator/src/cli.ts run <spec> [--no-merge] [--budget-usd N]
 ```
 
-Every builder branches off this, and every success merges back into it. The default branch is
-never touched by the loop.
+It does the rest: writes the tickets, drains the frontier in parallel, opens the PR, and merges it
+if the run came out clean. Stream its output to Adham as it goes; do not re-implement any of it by
+hand, and do not "help" by creating issues, merging branches or closing tickets yourself. Every one
+of those is a decision the program makes deterministically, and a second actor doing them corrupts
+the run.
 
-### One round
+**Why this half is code.** The loop, the frontier, the four-builder cap, the stop conditions, the
+merge decision and every GitHub mutation are `if` statements and function calls — things a model
+cannot skip, mis-count or talk itself out of. The model still writes the tickets and the code; it
+just no longer decides what happens to them. That determinism is the point of the split, and
+`orchestrator/README.md` says which decision lives where.
 
-Repeat until a stop condition below fires.
+**If it exits non-zero**, the run did not finish cleanly. Report its output verbatim — the stop
+condition, the handed-back tickets and the reason each one failed. Do not re-run it to "try again":
+a failed ticket is deliberately never retried, so a second run rebuilds nothing and only re-opens
+the same deadlock.
 
-1. **Read the frontier.** `scripts/frontier.sh <spec>` — open, unclaimed, unblocked, `ready-for-agent`.
+## What the program needs
 
-2. **Take up to four.** Four concurrent builders is the cap. More than that and the round's merge
-   step turns into the bottleneck the parallelism was meant to remove. Extras wait for the next round.
+- **`foundry.config.json` at the spoke repo root**, declaring the gate commands. Foundry will not
+  guess what "green" means:
 
-3. **Claim each** with `gh issue edit <n> --add-assignee @me` before dispatching. The assignee is
-   what keeps a ticket off the next frontier while its builder is still running.
+  ```json
+  { "verify": ["npm run typecheck", "npm test"], "maxParallel": 4 }
+  ```
 
-4. **Dispatch every builder for this round in a single message**, one `Agent` call each, so they
-   actually run at once. Use the `builder` agent type with `isolation: "worktree"`. Tickets in one
-   round are independent by construction — they have no blocking edges between them — which is
-   exactly what makes it safe to run them together. Give each builder its ticket number, the spec
-   number, and the integration branch name.
-
-5. **Land each result, in the order they come back.**
-
-   - **Success** — the builder committed to `foundry/<ticket>-<slug>`. Merge it into the
-     integration branch. Run the repo's typecheck and full test suite *after the merge*: a slice
-     that was green alone can still break a sibling merged in the same round. Then
-     `gh issue close <n> --comment "..."`.
-   - **Merge conflict** — resolve it now, on sight, not at the end of the run. Two slices touching
-     the same file is normal; the fix is a merge resolution, not a failed ticket.
-   - **Failure** — the builder could not finish, or the post-merge suite fails and the cause is the
-     slice itself. Revert the merge, then hand the ticket back:
-     `gh issue edit <n> --remove-assignee @me --remove-label ready-for-agent --add-label ready-for-human`
-     and comment with what went wrong. It leaves the frontier permanently, and anything it blocks
-     will never unblock — which the loop reports as a deadlock rather than silently skipping.
-
-6. **Recompute the frontier and go again.** Closing tickets is what unblocks the next round; this
-   is the only thing that advances the loop.
-
-### Stop conditions
-
-Check in this order at the top of every round.
-
-| Condition | Meaning | What you do |
-|---|---|---|
-| Frontier empty, `--open` empty | Every ticket is closed | **Done.** Go to Phase 5. |
-| Frontier empty, `--open` non-empty | The rest are blocked by tickets that failed | **Deadlock.** Go to Phase 5 with what landed, and name the tickets that are stuck and why. |
-| Two consecutive rounds close nothing | The loop is spinning | **Stall.** Stop, and report the last round's failures verbatim. |
-
-There is no round limit beyond these. A run of thirty tickets is a long run, not a runaway one —
-the queue draining is the terminating condition, and it terminates because every round either
-closes a ticket or trips the stall check.
-
-## 5. Pull request, then merge
-
-Push the integration branch and open **one** pull request against the default branch, titled for
-the spec and with `Closes #<spec>` in the body when every ticket landed.
-
-### Whether to merge
-
-Merge only when **all four** hold. Check them; do not assume any of them from the loop's own view
-of itself.
-
-1. The run reached **done** — every ticket closed, none handed back as `ready-for-human`.
-2. Typecheck and the **full** test suite are green on the integration branch after the last merge.
-3. CI is green: `gh pr checks <pr> --watch`. A repo with no checks configured passes this trivially,
-   which is the correct reading — there is nothing to be red.
-4. Adham did not pass `--no-merge` when he started the run.
-
-All four:
-
-```bash
-gh pr merge <pr> --merge --delete-branch
-```
-
-`--merge`, not `--squash`: each ticket is a meaningful unit with its own commit, and the ticket
-numbers in that history are how a future run's `git log` explains itself.
-
-### Whether not to
-
-Any of the four failing, leave the PR open and say so plainly in the report. A **deadlock** or a
-**stall** always leaves the PR open — those states have failed tickets in them by definition, and
-merging one puts known-incomplete work on the default branch under a green-looking PR.
-
-**Never `--admin`. Never force. Never retry a refused merge.** If GitHub refuses — branch
-protection, a required review, a failing required check — report the refusal verbatim and leave the
-PR open. A protection rule is a decision Adham already made, and routing around it is the one thing
-an unattended run must not do.
-
-### Then stop
-
-Clean up the round's leftovers — `git worktree prune`, and remove anything still under
-`.claude/worktrees/`.
-
-Report and stop:
-
-- tickets closed, and the PR number
-- **whether it merged**, and if not, which of the four conditions failed
-- tickets handed back as `ready-for-human`, each with the reason
-- tickets left blocked, and which failure is blocking them
-
-Report the run honestly. A deadlocked run that built four of nine tickets is a four-of-nine run
-with an open PR; do not present it as a shipped feature.
+- **`ANTHROPIC_API_KEY` in the environment.** The Agent SDK authenticates with an API key, not with
+  a Claude Code subscription, so an unattended run bills at API rates. Preflight refuses without it.

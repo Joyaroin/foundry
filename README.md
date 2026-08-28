@@ -16,6 +16,12 @@ them all without you — parallel where they are independent, sequential where t
 You are in the loop for the grilling and the spec. After you approve the spec, nothing asks you
 anything until it is finished.
 
+**The two halves are built differently, on purpose.** Phases 0-2 are a conversation, so they are a
+Claude Code skill. Phases 3-5 must be deterministic, so they are a TypeScript program on the
+[Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk) — the loop, the concurrency cap, the
+stop conditions and the merge decision are `if` statements a model cannot skip. See
+[`orchestrator/README.md`](orchestrator/README.md) for which decision lives where.
+
 ## Hub and spoke
 
 This repo is the **hub**. It ships the orchestrator, the five skills it drives, and the builder
@@ -46,6 +52,13 @@ claude
 Then `cd` into any repo and run `/foundry <the thing you want built>`.
 Add `--no-merge` to stop the run at an open PR instead of merging it.
 
+The orchestrator needs its own install once:
+
+```bash
+cd /Users/adhamsedik/foundry/orchestrator && npm install
+export ANTHROPIC_API_KEY=...   # the Agent SDK does not use a Claude Code subscription
+```
+
 ## What it needs from a spoke repo
 
 Checked in Phase 0, all refuse-to-run:
@@ -54,6 +67,8 @@ Checked in Phase 0, all refuse-to-run:
 - `.claude/` is gitignored (builder worktrees live at `.claude/worktrees/`)
 - `gh` is authenticated, and the repo has the `ready-for-agent` / `ready-for-human` labels
 - GitHub **issue dependencies** are readable — this is how blocked tickets are told from ready ones
+- **`foundry.config.json`** declares the gate commands: `{"verify":["npm run typecheck","npm test"]}`.
+  This is how the program knows what "green" means; it will not guess.
 
 ## What's inside
 
@@ -64,7 +79,8 @@ Checked in Phase 0, all refuse-to-run:
 | `plugin/skills/{grilling,to-spec,to-tickets,implement}/` | the four pipeline stages |
 | `plugin/skills/tdd/` | the testing discipline `implement` works to |
 | `plugin/agents/builder.md` | builds exactly one ticket, in its own worktree, on its own branch |
-| `plugin/scripts/frontier.sh` | which tickets can be built right now |
+| `orchestrator/` | the unattended half: the Agent SDK program that runs phases 3-5 |
+| `orchestrator/src/frontier.ts` | which tickets can be built right now — the whole scheduler |
 
 ## How the loop terminates
 

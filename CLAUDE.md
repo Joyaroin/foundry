@@ -1,23 +1,33 @@
 # foundry
 
-A Claude Code plugin: the `/foundry` pipeline — grill → spec → tickets → parallel build → PR → merge.
+The `/foundry` pipeline — grill → spec → tickets → parallel build → PR → merge. A Claude Code
+plugin for the attended half, an Agent SDK program (`orchestrator/`) for the unattended half.
 Attended through the spec, unattended after it. See `README.md` for the shape.
 
 ## Status
 
-v0.1.0, unproven. Written 2026-08-27, not yet run against a real spoke repo end to end.
+v0.2.0, unproven. Written 2026-08-27, not yet run against a real spoke repo end to end.
+The orchestrator typechecks against the installed SDK; no live run has happened.
 Do not describe it as working until it has drained a real ticket queue — say what has and has not
 been exercised.
 
-## The constraint that shapes this repo
+## The two constraints, and the order they came in
 
-Its predecessor, `/ship` in `Joyaroin/claude-config`, was 1,889 lines and got deleted unused
-(`3c1aa4a`, 2026-08-18) because Adham could not own it. **Comprehensibility outranks capability
-here.** Every file must be readable in one sitting by someone who did not write it.
+**Comprehensibility.** Its predecessor, `/ship` in `Joyaroin/claude-config`, was 1,889 lines and got
+deleted unused (`3c1aa4a`, 2026-08-18) because Adham could not own it. No clever shell, no generated
+control flow, no abstraction with one caller. When you add something, the honest question is not
+"does this work" but "could he change it next month".
 
-Concretely: no clever shell, no generated control flow, no abstraction with one caller. If a
-feature needs a mechanism he would have to study to modify, the feature loses. When you add
-something, the honest question is not "does this work" but "could he change it next month".
+**Determinism.** On 2026-08-27 Adham asked for the Claude Agent SDK, having been told the tradeoff:
+a markdown loop is advisory, and nothing stops a session skipping a stop condition or merging a run
+with failures in it. His words: *"i want the determinism. thats the point of this agent."*
+
+These pull against each other and the resolution is a split, not a compromise. Phases 0-2 stay
+markdown because grilling is a conversation. Phases 3-5 are TypeScript because they must not drift.
+**Anything that decides the shape of a run belongs in code**; the model is asked for judgement in
+exactly two places — what the tickets are, and the code inside one ticket. `orchestrator/README.md`
+holds that table, and it is the contract. Moving a decision from code back into a prompt undoes the
+thing Adham asked for.
 
 ## Self-containment
 
@@ -29,6 +39,9 @@ already diverged from their originals on purpose:
 - `to-spec` / `to-tickets` point at `foundry/references/tracker.md` instead of a per-repo setup skill
 - `implement` points at the bundled `tdd` skill, and inlines the self-review discipline instead of
   calling `code-review`, which this plugin does not ship
+- `to-tickets` is invoked by the orchestrator with an override forbidding it to touch the tracker:
+  it writes JSON, and the program publishes. A model that calls `gh issue create` here would put a
+  hallucinated dependency edge into the frontier and corrupt the whole run
 - `tdd` no longer asks anyone to confirm seams — the spec's Testing Decisions settled them, and a
   builder that asks a question stalls its whole round. Its `codebase-design` and `code-review`
   references are now conditional or redirected for the same reason
