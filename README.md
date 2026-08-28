@@ -2,19 +2,19 @@
 
 One idea in, a reviewable pull request out.
 
-`/foundry` grills you on an idea, writes the spec, breaks it into dependency-aware tickets, and
-then builds them all without you — parallel where they are independent, sequential where they
-block each other — stopping when the queue is empty.
+`/foundry` grills you on an idea, writes the spec, breaks it into dependency-aware tickets, builds
+them all without you — parallel where they are independent, sequential where they block each other
+— and merges the result if the whole queue lands green.
 
 ```
   ATTENDED  ──────────────────────────┐   UNATTENDED ─────────────────────────
-  0 preflight → 1 grill → 2 spec ─────┤── 3 tickets → 4 build loop → 5 PR → stop
+  0 preflight → 1 grill → 2 spec ─────┤── 3 tickets → 4 build loop → 5 PR → merge → stop
                               ▲       │
                           the only gate
 ```
 
 You are in the loop for the grilling and the spec. After you approve the spec, nothing asks you
-anything until it hands you a PR.
+anything until it is finished.
 
 ## Hub and spoke
 
@@ -44,6 +44,7 @@ claude
 ```
 
 Then `cd` into any repo and run `/foundry <the thing you want built>`.
+Add `--no-merge` to stop the run at an open PR instead of merging it.
 
 ## What it needs from a spoke repo
 
@@ -68,11 +69,26 @@ Checked in Phase 0, all refuse-to-run:
 
 Every round either closes a ticket or trips a check. There are exactly three ways to stop:
 
-- **done** — no open tickets left; opens the PR
+- **done** — no open tickets left; opens the PR and merges it if it is green
 - **deadlock** — the only tickets left are blocked by ones a builder failed; opens a PR for what landed and names what is stuck
 - **stall** — two consecutive rounds closed nothing
 
-It does not merge the PR. You do.
+## When it merges, and when it doesn't
+
+A clean **done** run merges its own PR — `--merge`, `--delete-branch`, so the per-ticket commits
+survive. It merges only when all four of these hold:
+
+1. every ticket closed, none handed back
+2. typecheck and the full suite green on the integration branch after the last merge
+3. `gh pr checks` green (a repo with no CI passes trivially — there is nothing to be red)
+4. you did not pass `--no-merge`
+
+**A deadlock or a stall never merges.** Those states contain failed tickets by definition, and
+merging one would put known-incomplete work on your default branch under a green-looking PR. The
+PR is left open and the report says which condition stopped it.
+
+It never uses `--admin`, never forces, and never retries a refused merge. If branch protection or a
+required review blocks it, that refusal is reported verbatim and the PR stays open.
 
 ## Failure is not retried
 

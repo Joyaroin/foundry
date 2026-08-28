@@ -75,6 +75,16 @@ gh issue edit  <n> --remove-assignee @me --remove-label ready-for-agent --add-la
 gh issue close <n> --comment "Built in <branch>, merged into <integration branch>."
 ```
 
+**Merge the run's PR**
+
+```bash
+gh pr checks <pr> --watch          # must pass before the merge, or have no checks at all
+gh pr merge  <pr> --merge --delete-branch
+```
+
+`--merge`, never `--squash`: each ticket is its own commit, and the ticket numbers in that history
+are how a later run's `git log` explains itself. Never `--admin` — see the plugin's merge rules.
+
 ## Why the assignee matters
 
 `frontier.sh` drops any ticket with an assignee. Claiming a ticket *before* dispatching its builder

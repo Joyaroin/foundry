@@ -1,7 +1,7 @@
 ---
 name: foundry
-description: Take one idea from grilling through spec, tickets and implementation. Attended until the spec is approved, unattended after it. Run from inside the target repo.
-argument-hint: "<the idea you want built>"
+description: Take one idea from grilling through spec, tickets, implementation and merge. Attended until the spec is approved, unattended after it. Run from inside the target repo.
+argument-hint: "<the idea you want built> [--no-merge]"
 disable-model-invocation: true
 ---
 
@@ -11,14 +11,15 @@ One idea in, merged tickets out. Five phases, one gate.
 
 ```
   ATTENDED  ──────────────────────────┐   UNATTENDED ─────────────────────────
-  0 preflight → 1 grill → 2 spec ─────┤── 3 tickets → 4 build loop → 5 PR → stop
+  0 preflight → 1 grill → 2 spec ─────┤── 3 tickets → 4 build loop → 5 PR → merge → stop
                               ▲       │
                           the only gate
 ```
 
 **Phases 0–2 are a conversation with Adham.** He answers, he corrects, he approves the spec.
-**Phase 3 onward runs without him.** Tickets are written and built with no further approval.
-The run ends by itself when no ticket can be built — never because it ran out of things to guess at.
+**Phase 3 onward runs without him.** Tickets are written, built, and — on a clean run — merged, with
+no further approval. The run ends by itself when no ticket can be built, never because it ran out
+of things to guess at.
 
 Read that boundary literally. After the spec approval, do not ask questions, do not present
 breakdowns for review, do not pause between tickets. If you find yourself wanting to ask, the
@@ -49,6 +50,10 @@ Do not offer to continue past any of them.
    from a ready one. You cannot verify this until tickets exist, so it is checked at the top of
    Phase 4 instead — but say now that it will be.
 
+Not a precondition, but note it here: if he passed **`--no-merge`**, the run stops at an open PR
+instead of merging. It changes nothing until Phase 5, but the Phase 2 gate has to say which way
+this run is going — the thing he approves must be the thing that happens.
+
 ## 1. Grill (attended)
 
 Invoke the bundled `grilling` skill on the idea Adham passed as the argument.
@@ -66,8 +71,8 @@ Invoke the bundled `to-spec` skill. It synthesises the conversation; it does not
 Publish the spec as a GitHub issue labelled `ready-for-agent`. Then show Adham the issue number
 and ask him plainly to approve it, in these words or close to them:
 
-> Spec is #N. Approving it starts the unattended half: I write the tickets and build them all
-> without checking back. Approve?
+> Spec is #N. Approving it starts the unattended half: I write the tickets, build them all, and
+> merge the PR if the whole queue lands green — without checking back. Approve?
 
 **This is the last thing you ask him.** Once he approves, everything below runs to completion or
 to a reported failure.
@@ -154,22 +159,53 @@ There is no round limit beyond these. A run of thirty tickets is a long run, not
 the queue draining is the terminating condition, and it terminates because every round either
 closes a ticket or trips the stall check.
 
-## 5. Pull request, then stop
+## 5. Pull request, then merge
 
 Push the integration branch and open **one** pull request against the default branch, titled for
 the spec and with `Closes #<spec>` in the body when every ticket landed.
 
-**Do not merge it.** Adham merges. That is the whole point of the run ending at a PR: the
-unattended half writes code, and a human decides whether it ships.
+### Whether to merge
+
+Merge only when **all four** hold. Check them; do not assume any of them from the loop's own view
+of itself.
+
+1. The run reached **done** — every ticket closed, none handed back as `ready-for-human`.
+2. Typecheck and the **full** test suite are green on the integration branch after the last merge.
+3. CI is green: `gh pr checks <pr> --watch`. A repo with no checks configured passes this trivially,
+   which is the correct reading — there is nothing to be red.
+4. Adham did not pass `--no-merge` when he started the run.
+
+All four:
+
+```bash
+gh pr merge <pr> --merge --delete-branch
+```
+
+`--merge`, not `--squash`: each ticket is a meaningful unit with its own commit, and the ticket
+numbers in that history are how a future run's `git log` explains itself.
+
+### Whether not to
+
+Any of the four failing, leave the PR open and say so plainly in the report. A **deadlock** or a
+**stall** always leaves the PR open — those states have failed tickets in them by definition, and
+merging one puts known-incomplete work on the default branch under a green-looking PR.
+
+**Never `--admin`. Never force. Never retry a refused merge.** If GitHub refuses — branch
+protection, a required review, a failing required check — report the refusal verbatim and leave the
+PR open. A protection rule is a decision Adham already made, and routing around it is the one thing
+an unattended run must not do.
+
+### Then stop
 
 Clean up the round's leftovers — `git worktree prune`, and remove anything still under
 `.claude/worktrees/`.
 
-Then report and stop:
+Report and stop:
 
 - tickets closed, and the PR number
+- **whether it merged**, and if not, which of the four conditions failed
 - tickets handed back as `ready-for-human`, each with the reason
 - tickets left blocked, and which failure is blocking them
 
-Report the run honestly. A deadlocked run that built four of nine tickets is a four-of-nine run;
-do not present it as a finished feature.
+Report the run honestly. A deadlocked run that built four of nine tickets is a four-of-nine run
+with an open PR; do not present it as a shipped feature.

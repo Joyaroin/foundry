@@ -1,6 +1,6 @@
 # foundry
 
-A Claude Code plugin: the `/foundry` pipeline — grill → spec → tickets → parallel build → PR.
+A Claude Code plugin: the `/foundry` pipeline — grill → spec → tickets → parallel build → PR → merge.
 Attended through the spec, unattended after it. See `README.md` for the shape.
 
 ## Status
@@ -42,7 +42,12 @@ project status out of the global `CLAUDE.md` in the first place.
 
 - **The spec approval is the only gate.** Adding a second place that asks Adham a question defeats
   the design. If a phase needs an answer, the spec should have carried it.
-- **Never merge the PR.** The run ends at a PR a human merges.
+- **Merge only a clean run.** Adham asked for self-merge on 2026-08-27, overruling the original
+  no-merge rule. It fires only on `done` + green suite + green CI + no `--no-merge`. A deadlocked
+  or stalled run leaves its PR open — those contain failed tickets by definition.
+- **Never `--admin`, never force, never retry a refused merge.** Branch protection is a decision
+  Adham already made. An unattended run that routes around it is the failure mode that makes the
+  whole pipeline untrustworthy.
 - **Never retry a failed ticket.** It becomes `ready-for-human` and the chain behind it deadlocks,
   loudly.
 - **Report honestly.** Four of nine tickets is a four-of-nine run.
