@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { rm } from "node:fs/promises";
+import { readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { run, tryRun, tryShell } from "./sh.js";
 import { WORKTREE_DIR } from "./config.js";
@@ -41,10 +41,22 @@ export async function removeWorktree(repo: string, path: string): Promise<void> 
   if (existsSync(path)) await rm(path, { recursive: true, force: true });
 }
 
+/**
+ * Clean up only the worktrees THIS run created.
+ *
+ * `.claude/worktrees/` is not foundry's directory. A spoke may keep dozens of its own worktrees
+ * there — MediaSafe had 28, two of them locked — and an earlier version of this function deleted
+ * the whole directory, which would have destroyed every one of them. Never remove the parent, and
+ * never touch a path foundry did not create: builder worktrees are always `ticket-<n>`.
+ */
 export async function pruneWorktrees(repo: string): Promise<void> {
-  await tryRun("git", ["worktree", "prune"], repo);
   const dir = join(repo, WORKTREE_DIR);
-  if (existsSync(dir)) await rm(dir, { recursive: true, force: true });
+  if (existsSync(dir)) {
+    for (const entry of await readdir(dir)) {
+      if (/^ticket-\d+$/.test(entry)) await removeWorktree(repo, join(dir, entry));
+    }
+  }
+  await tryRun("git", ["worktree", "prune"], repo);
 }
 
 export async function branchExists(name: string, cwd: string): Promise<boolean> {

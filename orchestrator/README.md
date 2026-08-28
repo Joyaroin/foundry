@@ -66,7 +66,9 @@ green" must not be a judgement call. Every command runs from the repo root and m
 
 Two facts bite any repo with real tests:
 
-1. **A fresh worktree has no `node_modules`** — it is gitignored, so it is not in the checkout.
+1. **A fresh worktree has none of the repo's gitignored files** — no `node_modules`, and no `.env`.
+   They are gitignored, so they are not in the checkout. Anything the app reads from either is
+   simply missing, and the failure looks like a broken connection rather than a missing file.
 2. **Concurrent builders share every external resource**, a database above all. Four builders running
    one suite against one Postgres fail for reasons that have nothing to do with their code.
 
@@ -90,6 +92,7 @@ A worked example, from a Next.js app whose tests need Postgres:
   "builderEnv": { "DATABASE_URL": "postgres://user:pw@localhost:5432/app_t{ticket}" },
   "builderSetup": [
     "ln -sfn {repoRoot}/node_modules node_modules",
+    "ln -sfn {repoRoot}/.env .env",
     "docker exec app-postgres createdb -U user app_t{ticket}",
     "npm run db:migrate"
   ],
@@ -98,6 +101,14 @@ A worked example, from a Next.js app whose tests need Postgres:
 ```
 
 A repo whose tests touch nothing shared needs none of it — `verify` alone is enough.
+
+**`verifyEnv` points at a database that must already exist and be migrated.** Creating it is a
+one-off you do by hand; the program does not provision it, and an empty database fails every gate.
+
+### `.claude/worktrees/` is not foundry's directory
+
+A spoke may keep its own worktrees there — MediaSafe has 28, two locked. Foundry creates only
+`ticket-<n>` and removes only those. It must never delete the parent directory.
 
 ## Authentication and cost
 

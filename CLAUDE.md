@@ -78,6 +78,13 @@ Schemas describe, they never verify. Keep the `git.branchExists()` cross-check a
 coming from `git.verify()` exit codes. And keep the backwards-edge check in `tickets.ts`: a JSON
 Schema cannot express it, and it is what makes a dependency cycle unrepresentable.
 
+## Never delete `.claude/worktrees/`
+
+A spoke keeps its own worktrees there — MediaSafe has 28, two of them locked. `pruneWorktrees`
+once deleted the whole directory and would have destroyed all of them. It now removes only
+`ticket-<n>` paths, which are the only ones foundry creates. Do not "simplify" it back to an rm
+of the parent.
+
 ## Rules for the unattended half
 
 - **The spec approval is the only gate.** Adding a second place that asks Adham a question defeats
