@@ -2,8 +2,12 @@
   "name": "foundry",
   "description": "Autonomous feature pipeline: grill -> spec -> tickets -> parallel build.",
   "version": "0.1.0",
-  "author": { "name": "Adham Sedik" },
+  "author": {
+    "name": "Adham Sedik"
+  },
   "repository": "https://github.com/Joyaroin/foundry",
   "skills": "./skills/",
-  "agents": "./agents/"
+  "agents": [
+    "./agents/builder.md"
+  ]
 }
