@@ -22,7 +22,10 @@ import type { SpokeConfig } from "./types.js";
  * because grilling needs a human; this program starts once the spec is approved.
  */
 
-const log = (msg: string) => console.log(msg);
+/** Every line stamped. A run takes tens of minutes and several builders interleave on one
+ *  stream, so "when did this happen, and how long was that gap" is not answerable otherwise. */
+const log = (msg: string) =>
+  console.log(msg === "" ? "" : `${new Date().toTimeString().slice(0, 8)} ${msg}`);
 const die = (msg: string): never => {
   console.error(`foundry: ${msg}`);
   process.exit(1);

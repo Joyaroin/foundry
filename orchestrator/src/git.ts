@@ -160,8 +160,12 @@ export async function push(branch: string, cwd: string): Promise<void> {
 export async function verify(
   config: SpokeConfig,
   cwd: string,
+  /** Called with each gate command before it runs. A gate can take minutes; without this the
+   *  run looks wedged between "merging" and a verdict. */
+  onCommand?: (command: string) => void,
 ): Promise<{ ok: boolean; failed?: string; detail?: string }> {
   for (const command of config.verify) {
+    onCommand?.(command);
     const r = await tryShell(command, cwd, config.verifyEnv);
     if (!r.ok) {
       const detail = [r.stdout, r.stderr].filter(Boolean).join("\n").slice(-4000);

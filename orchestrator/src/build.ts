@@ -132,6 +132,27 @@ async function resolveConflict(
   return { ok: true, detail: `resolved ${files.join(", ")}` };
 }
 
+/** Wall-clock since a start mark, as `1m23s`. A round takes tens of minutes; "still going" and
+ *  "wedged" look identical without one. */
+function since(start: number): string {
+  const s = Math.round((Date.now() - start) / 1000);
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m${String(s % 60).padStart(2, "0")}s`;
+}
+
+/**
+ * One line of a builder's own narration, attributed and bounded.
+ *
+ * Up to `maxParallel` builders share this single stream, so the ticket number is what makes it
+ * readable at all, and the truncation is what stops a builder that thinks in paragraphs from
+ * burying the two that do not. First non-trivial line only: the point is a pulse showing what is
+ * being worked on, not a transcript — the transcript is what the failure report already carries.
+ */
+function narrate(ticket: number, text: string, log: (msg: string) => void): void {
+  const line = text.split("\n").map((l) => l.trim()).find((l) => l.length > 3);
+  if (line === undefined) return;
+  log(`  #${ticket} | ${line.length > 140 ? `${line.slice(0, 137)}...` : line}`);
+}
+
 function slug(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
 }
@@ -174,14 +195,17 @@ async function build(
 ): Promise<BuilderReport> {
   const branch = `foundry/${t.number}-${slug(t.title)}`;
   const env = config.builderEnv ? expandAll(config.builderEnv, t.number, repoDir) : undefined;
+  const started = Date.now();
   let worktree: string | undefined;
 
   try {
     worktree = await git.addWorktree(repoDir, t.number, integration);
+    log(`  #${t.number} worktree cut from ${integration}`);
 
     // A builder that cannot get its own resources must not fall back to a sibling's.
     for (const command of config.builderSetup ?? []) {
       const resolved = expand(command, t.number, repoDir);
+      log(`  #${t.number} setup: ${resolved}`);
       const r = await tryShell(resolved, worktree, env);
       if (!r.ok) {
         return {
@@ -193,13 +217,16 @@ async function build(
         };
       }
     }
+    log(`  #${t.number} builder started on ${branch}`);
     const run = await agent(builderPrompt(t, spec, integration, branch), {
       cwd: worktree,
       maxTurns: 300,
       schema: REPORT_SCHEMA,
+      onText: (text) => narrate(t.number, text, log),
       ...(env ? { env } : {}),
       ...(budgetUsd !== undefined ? { maxBudgetUsd: budgetUsd } : {}),
     });
+    log(`  #${t.number} builder finished in ${since(started)} (${run.detail})`);
 
     if (!isReport(run.structured)) {
       return {
@@ -236,6 +263,7 @@ async function build(
     if (worktree) {
       for (const command of config.builderTeardown ?? []) {
         const resolved = expand(command, t.number, repoDir);
+        log(`  #${t.number} teardown: ${resolved}`);
         const r = await tryShell(resolved, worktree, env);
         if (!r.ok) log(`  #${t.number} teardown failed (not fatal): ${resolved}`);
       }
@@ -262,6 +290,7 @@ async function land(
     return { ticket: t.number, title: t.title, result: "handed-back", reason };
   }
 
+  log(`  #${t.number} merging ${report.branch}`);
   const merge = await git.mergeBranch(report.branch, repoDir);
   if (!merge.ok) {
     if (!merge.conflict) {
@@ -280,7 +309,7 @@ async function land(
   }
 
   // A slice that was green alone can still break a sibling merged in the same round.
-  const gates = await git.verify(config, repoDir);
+  const gates = await git.verify(config, repoDir, (cmd) => log(`  #${t.number} gate: ${cmd}`));
   if (!gates.ok) {
     await git.revertLastMerge(repoDir);
     const reason = `post-merge gate failed: ${gates.failed}\n\n${gates.detail ?? ""}`;
