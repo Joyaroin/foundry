@@ -153,6 +153,30 @@ so a blocked ticket can look ready and be built before its blocker exists. The f
 `normalise` that did not exist. `writeTickets` now waits for every edge it wrote to become visible,
 and fails loudly after 60s rather than starting the loop on data it cannot trust.
 
+## Cleaning up worktrees
+
+```bash
+foundry cleanup              # foundry's own leftovers, dry run
+foundry cleanup --all        # also worktrees you made by hand, dry run
+foundry cleanup --all --apply
+```
+
+Dry run by default; nothing is removed without `--apply`.
+
+What removal actually costs decides the rules. Removing a worktree does **not** delete its branch —
+committed work survives and can be checked out again. Only *uncommitted* changes are gone for good.
+So:
+
+| State | Verdict |
+|---|---|
+| `ticket-<n>` left by an interrupted run | removed (this is foundry's own debris) |
+| clean, unlocked | removed with `--all`; any unmerged commits are reported, since the branch is now the only copy |
+| uncommitted changes | **never removed** — the one irreversible loss |
+| locked | **never removed** — locking is a deliberate act |
+
+Without `--all` it touches only its own `ticket-<n>` directories. A run's debris is foundry's to
+clean; another developer's worktree is not.
+
 ## Recovering an interrupted run
 
 A claimed ticket is invisible to the frontier — that is what stops two builders taking the same one.

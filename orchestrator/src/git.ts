@@ -59,6 +59,59 @@ export async function pruneWorktrees(repo: string): Promise<void> {
   await tryRun("git", ["worktree", "prune"], repo);
 }
 
+export type WorktreeInfo = {
+  path: string;
+  /** Branch name without refs/heads/, or null for a detached checkout. */
+  branch: string | null;
+  locked: boolean;
+  /** True for the repository's own main checkout, which is never a removal candidate. */
+  isMain: boolean;
+};
+
+/** Every worktree of this repo, main checkout included. */
+export async function listWorktrees(repo: string): Promise<WorktreeInfo[]> {
+  const out = await run("git", ["worktree", "list", "--porcelain"], repo);
+  const worktrees: WorktreeInfo[] = [];
+  let current: Partial<WorktreeInfo> = {};
+
+  const flush = () => {
+    if (current.path) {
+      worktrees.push({
+        path: current.path,
+        branch: current.branch ?? null,
+        locked: current.locked ?? false,
+        isMain: current.path === repo,
+      });
+    }
+    current = {};
+  };
+
+  for (const line of out.split("\n")) {
+    if (line.startsWith("worktree ")) {
+      flush();
+      current.path = line.slice("worktree ".length);
+    } else if (line.startsWith("branch ")) {
+      current.branch = line.slice("branch ".length).replace(/^refs\/heads\//, "");
+    } else if (line === "locked" || line.startsWith("locked ")) {
+      current.locked = true;
+    }
+  }
+  flush();
+  return worktrees;
+}
+
+/** Uncommitted changes in a worktree. This is the only thing removal can destroy for good. */
+export async function isDirty(worktreePath: string): Promise<boolean> {
+  const r = await tryRun("git", ["status", "--porcelain"], worktreePath);
+  return !r.ok || r.stdout !== "";
+}
+
+/** Commits on `branch` that `base` does not have. The branch survives removal, so this is a signal, not a loss. */
+export async function commitsAhead(branch: string, base: string, repo: string): Promise<number> {
+  const r = await tryRun("git", ["rev-list", "--count", `${base}..${branch}`], repo);
+  return r.ok ? Number(r.stdout) || 0 : 0;
+}
+
 export async function branchExists(name: string, cwd: string): Promise<boolean> {
   return (await tryRun("git", ["rev-parse", "--verify", `refs/heads/${name}`], cwd)).ok;
 }

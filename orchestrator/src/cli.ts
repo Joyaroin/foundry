@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { credential } from "./auth.js";
 import { buildLoop } from "./build.js";
+import { cleanup } from "./cleanup.js";
 import { PLUGIN_PATH, WORKTREE_DIR } from "./config.js";
 import * as git from "./git.js";
 import * as gh from "./gh.js";
@@ -15,6 +16,7 @@ import type { SpokeConfig } from "./types.js";
 /**
  * foundry run     <spec-issue> [--no-merge] [--budget-usd N] [--skip-tickets]
  * foundry release <spec-issue>
+ * foundry cleanup [--all] [--apply]
  *
  * The unattended half. Phases 0-2 (preflight, grilling, spec) happen in Claude Code,
  * because grilling needs a human; this program starts once the spec is approved.
@@ -29,6 +31,7 @@ const die = (msg: string): never => {
 function usage(): never {
   console.error("usage: foundry run     <spec-issue> [--no-merge] [--budget-usd N] [--skip-tickets]");
   console.error("       foundry release <spec-issue>");
+  console.error("       foundry cleanup [--all] [--apply]");
   process.exit(2);
 }
 
@@ -113,7 +116,16 @@ async function preflight(repoDir: string): Promise<void> {
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const command = argv[0];
-  if (command !== "run" && command !== "release") usage();
+  if (command !== "run" && command !== "release" && command !== "cleanup") usage();
+
+  if (command === "cleanup") {
+    await cleanup(await git.repoRoot(process.cwd()), {
+      all: argv.includes("--all"),
+      apply: argv.includes("--apply"),
+      log,
+    });
+    return;
+  }
 
   const spec = Number(argv[1]);
   if (!Number.isInteger(spec) || spec <= 0) usage();

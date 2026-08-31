@@ -6,10 +6,12 @@ Attended through the spec, unattended after it. See `README.md` for the shape.
 
 ## Status
 
-v0.2.0, unproven. Written 2026-08-27, not yet run against a real spoke repo end to end.
-The orchestrator typechecks against the installed SDK; no live run has happened.
-Do not describe it as working until it has drained a real ticket queue — say what has and has not
-been exercised.
+v0.2.0. Proven end to end against `harness-fixture` on 2026-08-31 — see **Proven** below for what
+that run actually covered. Never exercised: the merge path (`--no-merge` on every run so far), and
+any spoke with real dependencies or a database.
+
+Say what has and has not been run. "Typechecks" is not "works" — every bug found so far was
+invisible to the compiler.
 
 ## The two constraints, and the order they came in
 
@@ -77,6 +79,18 @@ builder's worktree is deleted in a `finally` block.
 Schemas describe, they never verify. Keep the `git.branchExists()` cross-check and keep "green"
 coming from `git.verify()` exit codes. And keep the backwards-edge check in `tickets.ts`: a JSON
 Schema cannot express it, and it is what makes a dependency cycle unrepresentable.
+
+## Cleanup classifies before it deletes
+
+`foundry cleanup` exists because that audit was worth encoding, not because deleting worktrees is
+easy. The rule that generates all the others: removal does not delete a branch, so committed work
+survives; only uncommitted changes are lost for good. Hence dirty and locked worktrees are never
+removed, and `--all` is required before it will even consider one foundry did not create.
+
+Verified 2026-08-31 across all five cases on `harness-fixture`: foundry leftover, clean+merged,
+clean+unmerged, dirty, locked. The unmerged branch survived removal with its commit intact.
+
+Do not make `--apply` the default.
 
 ## Never delete `.claude/worktrees/`
 

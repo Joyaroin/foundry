@@ -1,0 +1,693 @@
+<title>Foundry Field Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --paper:    #F4F6F8;
+    --surface:  #FFFFFF;
+    --sunken:   #EAEDF1;
+    --ink:      #131821;
+    --ink-soft: #3D4753;
+    --muted:    #5C6773;
+    --rule:     #D8DDE4;
+    --rule-firm:#BFC7D1;
+    --signal:   #DE5314;
+    --signal-bg:#FCEDE5;
+    --green:    #196B3F;
+    --green-bg: #E4F1E9;
+    --red:      #A81F1A;
+    --red-bg:   #F8E6E4;
+    --amber:    #85561A;
+    --amber-bg: #F8EEDC;
+    --shadow:   0 1px 2px rgba(19,24,33,.06), 0 8px 24px -16px rgba(19,24,33,.28);
+
+    --measure: 68ch;
+    --step--1: .8125rem;
+    --step-0:  1rem;
+    --step-1:  1.1875rem;
+    --step-2:  1.5rem;
+    --step-3:  2rem;
+    --step-4:  2.75rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:    #10141A;
+      --surface:  #171D25;
+      --sunken:   #1D242E;
+      --ink:      #E7EBF0;
+      --ink-soft: #BFC8D3;
+      --muted:    #8B96A3;
+      --rule:     #29323D;
+      --rule-firm:#3C4754;
+      --signal:   #FF854A;
+      --signal-bg:#2E1A11;
+      --green:    #5FD094;
+      --green-bg: #12281C;
+      --red:      #F2867E;
+      --red-bg:   #2C1614;
+      --amber:    #E0B063;
+      --amber-bg: #2A2113;
+      --shadow:   0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:    #10141A;
+    --surface:  #171D25;
+    --sunken:   #1D242E;
+    --ink:      #E7EBF0;
+    --ink-soft: #BFC8D3;
+    --muted:    #8B96A3;
+    --rule:     #29323D;
+    --rule-firm:#3C4754;
+    --signal:   #FF854A;
+    --signal-bg:#2E1A11;
+    --green:    #5FD094;
+    --green-bg: #12281C;
+    --red:      #F2867E;
+    --red-bg:   #2C1614;
+    --amber:    #E0B063;
+    --amber-bg: #2A2113;
+    --shadow:   0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size: var(--step-0);
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+    margin: 0;
+    padding: 0 1.5rem 6rem;
+  }
+
+  .wrap { max-width: 78rem; margin: 0 auto; }
+
+  /* ---------- masthead ---------- */
+
+  .masthead {
+    display: grid;
+    gap: 1.5rem;
+    padding: 4.5rem 0 2.5rem;
+    border-bottom: 2px solid var(--ink);
+  }
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: var(--step--1);
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--signal);
+    font-weight: 500;
+  }
+  h1 {
+    font-family: Archivo, ui-sans-serif, system-ui, sans-serif;
+    font-weight: 700;
+    font-size: clamp(2.5rem, 7vw, var(--step-4));
+    line-height: 1.02;
+    letter-spacing: -.03em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .standfirst {
+    font-size: var(--step-1);
+    color: var(--ink-soft);
+    max-width: var(--measure);
+    margin: 0;
+  }
+
+  /* ---------- layout ---------- */
+
+  .cols { display: grid; gap: 3rem; align-items: start; }
+  @media (min-width: 62rem) {
+    .cols { grid-template-columns: 13rem minmax(0, 1fr); gap: 4rem; }
+    .toc { position: sticky; top: 2rem; }
+  }
+
+  .toc { padding-top: 3rem; }
+  .toc h2 {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: var(--step--1);
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+    margin: 0 0 .875rem;
+  }
+  .toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; counter-reset: toc; }
+  .toc li { counter-increment: toc; font-size: var(--step--1); }
+  .toc a {
+    color: var(--ink-soft);
+    text-decoration: none;
+    display: grid;
+    grid-template-columns: 1.75rem 1fr;
+    border-radius: 3px;
+  }
+  .toc a::before {
+    content: counter(toc, decimal-leading-zero);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    color: var(--muted);
+    font-size: .75rem;
+  }
+  .toc a:hover { color: var(--signal); }
+  .toc a:focus-visible { outline: 2px solid var(--signal); outline-offset: 3px; }
+
+  main { display: grid; gap: 3.5rem; padding-top: 3rem; }
+  section { display: grid; gap: 1.125rem; scroll-margin-top: 2rem; }
+  section > * { max-width: var(--measure); }
+  section > .bleed { max-width: none; }
+
+  h2.sec {
+    font-family: Archivo, ui-sans-serif, system-ui, sans-serif;
+    font-size: var(--step-2);
+    font-weight: 600;
+    letter-spacing: -.02em;
+    line-height: 1.15;
+    margin: 0;
+    padding-top: .5rem;
+    border-top: 1px solid var(--rule-firm);
+    display: grid;
+    grid-template-columns: 2.5rem 1fr;
+    max-width: none;
+    text-wrap: balance;
+  }
+  h2.sec .num {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: var(--step--1);
+    color: var(--signal);
+    font-weight: 500;
+    padding-top: .45rem;
+  }
+  h3 {
+    font-family: Archivo, ui-sans-serif, system-ui, sans-serif;
+    font-size: var(--step-1);
+    font-weight: 600;
+    letter-spacing: -.01em;
+    margin: .75rem 0 0;
+  }
+  p { margin: 0; }
+  a { color: var(--signal); }
+
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .875em;
+    background: var(--sunken);
+    padding: .1em .35em;
+    border-radius: 3px;
+    overflow-wrap: anywhere;
+  }
+
+  pre {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: var(--step--1);
+    line-height: 1.6;
+    background: var(--sunken);
+    color: var(--ink);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 1rem 1.125rem;
+    margin: 0;
+    overflow-x: auto;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  pre .c { color: var(--muted); }
+  pre .k { color: var(--signal); }
+
+  ul.plain { margin: 0; padding-left: 1.15rem; display: grid; gap: .5rem; }
+  ul.plain li::marker { color: var(--signal); }
+
+  .lede { font-size: var(--step-1); color: var(--ink-soft); }
+
+  /* ---------- callout ---------- */
+
+  .note {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 1rem 1.125rem;
+    display: grid;
+    gap: .4rem;
+  }
+  .note .tag {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .6875rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .note.warn { background: var(--amber-bg); border-color: color-mix(in srgb, var(--amber) 32%, transparent); }
+  .note.warn .tag { color: var(--amber); }
+  .note.stop { background: var(--red-bg); border-color: color-mix(in srgb, var(--red) 32%, transparent); }
+  .note.stop .tag { color: var(--red); }
+  .note.good { background: var(--green-bg); border-color: color-mix(in srgb, var(--green) 32%, transparent); }
+  .note.good .tag { color: var(--green); }
+
+  /* ---------- tables ---------- */
+
+  .tablewrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: var(--step--1); }
+  th, td { text-align: left; padding: .7rem .875rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  thead th {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .6875rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+    background: var(--sunken);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.key { font-family: "IBM Plex Mono", ui-monospace, monospace; white-space: nowrap; color: var(--ink); font-weight: 500; }
+
+  .pill {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .6875rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    font-weight: 600;
+    padding: .18em .5em;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .pill.done  { background: var(--green-bg);  color: var(--green); }
+  .pill.dead  { background: var(--red-bg);    color: var(--red); }
+  .pill.stall { background: var(--amber-bg);  color: var(--amber); }
+
+  /* ---------- phase strip ---------- */
+
+  .phases {
+    display: grid;
+    gap: .5rem;
+    grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+    margin-top: .5rem;
+  }
+  .phase {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: .75rem .875rem;
+    display: grid;
+    gap: .2rem;
+  }
+  .phase .n {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .6875rem;
+    color: var(--muted);
+    letter-spacing: .1em;
+  }
+  .phase .t { font-weight: 600; font-size: var(--step--1); }
+  .phase .who {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .6875rem;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+  }
+  .phase.att { border-color: var(--rule-firm); }
+  .phase.att .who { color: var(--muted); }
+  .phase.gate { border-color: var(--signal); border-width: 2px; background: var(--signal-bg); }
+  .phase.gate .who { color: var(--signal); font-weight: 600; }
+  .phase.un .who { color: var(--green); }
+
+  /* ---------- rounds diagram ---------- */
+
+  .rounds {
+    display: grid;
+    gap: .875rem;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 1.25rem;
+  }
+  .round { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: 1rem; align-items: start; }
+  @media (max-width: 34rem) { .round { grid-template-columns: 1fr; gap: .5rem; } }
+  .round .label {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .75rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding-top: .55rem;
+  }
+  .tickets { display: flex; flex-wrap: wrap; gap: .625rem; }
+  .ticket {
+    border: 1px solid var(--rule-firm);
+    border-radius: 4px;
+    padding: .5rem .75rem;
+    display: grid;
+    gap: .15rem;
+    min-width: 11rem;
+    background: var(--paper);
+  }
+  .ticket .id {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .75rem;
+    font-weight: 600;
+  }
+  .ticket .st {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .6875rem;
+    color: var(--muted);
+  }
+  .ticket.build { border-color: var(--signal); background: var(--signal-bg); }
+  .ticket.build .id { color: var(--signal); }
+  .ticket.held  { border-style: dashed; opacity: .78; }
+  .divider { border-top: 1px dashed var(--rule-firm); }
+  .flow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .75rem;
+    color: var(--muted);
+    padding-left: 7.5rem;
+  }
+  @media (max-width: 34rem) { .flow { padding-left: 0; } }
+
+  footer {
+    margin-top: 4.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--rule);
+    font-size: var(--step--1);
+    color: var(--muted);
+    max-width: var(--measure);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">Hub and spoke · v0.2.0</div>
+    <h1>Foundry Field Guide</h1>
+    <p class="standfirst">How to point the foundry pipeline at one of your projects: what a repo needs before its first run, what the loop decides on its own, and the five things that only broke once it was run for real.</p>
+  </header>
+
+  <div class="cols">
+
+    <nav class="toc" aria-label="Contents">
+      <h2>Contents</h2>
+      <ol>
+        <li><a href="#shape">The shape</a></li>
+        <li><a href="#hub">Install the hub</a></li>
+        <li><a href="#spoke">Prepare a spoke</a></li>
+        <li><a href="#run">Run it</a></li>
+        <li><a href="#frontier">How it schedules</a></li>
+        <li><a href="#config">Config reference</a></li>
+        <li><a href="#stop">How it ends</a></li>
+        <li><a href="#merge">The merge decision</a></li>
+        <li><a href="#recover">When it goes wrong</a></li>
+        <li><a href="#gotchas">Hard-won gotchas</a></li>
+        <li><a href="#examples">Two real configs</a></li>
+      </ol>
+    </nav>
+
+    <main>
+
+      <!-- 1 -->
+      <section id="shape">
+        <h2 class="sec"><span class="num">01</span><span>The shape</span></h2>
+        <p class="lede">Foundry takes one idea from a grilling session to a merged pull request. It is built in two halves, and the seam between them is the only place it asks you anything.</p>
+        <p>The first half is a conversation, so it is a Claude Code skill. The second half must not drift, so it is a TypeScript program on the Claude Agent SDK — the loop, the concurrency cap, the stop conditions and the merge decision are all <code>if</code> statements a model cannot skip.</p>
+
+        <div class="phases bleed">
+          <div class="phase att"><span class="n">00</span><span class="t">Preflight</span><span class="who">attended</span></div>
+          <div class="phase att"><span class="n">01</span><span class="t">Grill</span><span class="who">attended</span></div>
+          <div class="phase gate"><span class="n">02</span><span class="t">Spec</span><span class="who">your only gate</span></div>
+          <div class="phase un"><span class="n">03</span><span class="t">Tickets</span><span class="who">unattended</span></div>
+          <div class="phase un"><span class="n">04</span><span class="t">Build loop</span><span class="who">unattended</span></div>
+          <div class="phase un"><span class="n">05</span><span class="t">PR &amp; merge</span><span class="who">unattended</span></div>
+        </div>
+
+        <p>You grill, you approve the spec. After that nothing asks you a question until it hands you a pull request. The model is consulted in exactly two places for the rest of the run — what the tickets are, and the code inside one ticket. Everything else is code.</p>
+
+        <div class="note good">
+          <span class="tag">Proven 2026-08-31</span>
+          <p>A full run against <code>harness-fixture</code>: three tickets, two built in parallel, one correctly held behind its blocker and built in round two, all closed, PR opened, CI green, 11 tests passing, exit&nbsp;0. Never exercised yet: the self-merge path, and any spoke with heavy dependencies.</p>
+        </div>
+      </section>
+
+      <!-- 2 -->
+      <section id="hub">
+        <h2 class="sec"><span class="num">02</span><span>Install the hub</span></h2>
+        <p>Once per machine. The hub holds the skills and the orchestrator; your project repos are spokes it operates on and it keeps no per-project state.</p>
+<pre><code><span class="c"># in Claude Code</span>
+/plugin marketplace add /Users/adhamsedik/foundry
+/plugin install foundry@foundry
+
+<span class="c"># then, once, for the orchestrator</span>
+cd /Users/adhamsedik/foundry/orchestrator && npm install</code></pre>
+        <p>Restart Claude Code after installing the plugin, or the skills will not load.</p>
+
+        <h3>Credentials</h3>
+        <p>Being logged in to Claude Code is enough — the SDK picks up those OAuth credentials, so a local run draws on your subscription rather than API billing. For headless or scheduled runs prefer a long-lived token; an API key also works and bills at API rates. Preflight prints which one it found.</p>
+<pre><code><span class="c"># optional, better for unattended runs</span>
+claude setup-token
+export CLAUDE_CODE_OAUTH_TOKEN=<span class="k">...</span></code></pre>
+      </section>
+
+      <!-- 3 -->
+      <section id="spoke">
+        <h2 class="sec"><span class="num">03</span><span>Prepare a spoke</span></h2>
+        <p>Six things, checked at preflight. The first five are usually already true; the sixth is the only file you have to write.</p>
+
+        <ul class="plain">
+          <li><strong>You are inside the repo</strong>, and the <strong>working tree is clean</strong> — builders branch off the integration branch, and uncommitted work would be inherited by every one of them.</li>
+          <li><strong><code>.claude/</code> is gitignored.</strong> Builder worktrees live at <code>.claude/worktrees/</code>, and builders commit.</li>
+          <li><strong><code>gh</code> is authenticated</strong>, and the repo has the <code>ready-for-agent</code> and <code>ready-for-human</code> labels. Foundry creates them if missing.</li>
+          <li><strong>GitHub issue dependencies are readable</strong> on the repo. This is how a blocked ticket is told from a ready one; without it foundry refuses rather than guessing.</li>
+          <li><strong>Commits will be attributed to you.</strong> A local <code>user.email</code> override silently beats correct global settings and lands every commit <em>Unverified</em>. Foundry warns at preflight.</li>
+          <li><strong><code>foundry.config.json</code> at the repo root</strong>, declaring the gate commands.</li>
+        </ul>
+
+<pre><code><span class="c">// foundry.config.json — the minimum</span>
+{ <span class="k">"verify"</span>: ["npm run typecheck", "npm test"] }</code></pre>
+
+        <div class="note warn">
+          <span class="tag">Green is declared, never inferred</span>
+          <p>Foundry will not guess what "the test suite" means for your repo. Every <code>verify</code> command runs from the repo root and must exit&nbsp;0. This is what keeps "is it green" out of a model's judgement.</p>
+        </div>
+      </section>
+
+      <!-- 4 -->
+      <section id="run">
+        <h2 class="sec"><span class="num">04</span><span>Run it</span></h2>
+        <p>Two commands, one for each half.</p>
+
+        <h3>The attended half</h3>
+<pre><code>cd ~/your-project
+claude
+&gt; /foundry:foundry add per-title watch reminders</code></pre>
+        <p>It grills you in rounds, then writes a spec and publishes it as an issue. Then it asks the one question of the whole run — roughly: <em>"Spec is #N. Approving it starts the unattended half: I write the tickets, build them all, and merge the PR if the whole queue lands green. Approve?"</em></p>
+
+        <h3>The unattended half</h3>
+<pre><code>npx tsx ~/foundry/orchestrator/src/cli.ts run <span class="k">&lt;spec#&gt;</span> --no-merge --budget-usd 5</code></pre>
+
+        <div class="tablewrap bleed">
+          <table>
+            <thead><tr><th>Flag</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td class="key">--no-merge</td><td>Stop at an open pull request instead of merging it. Use this for a repo's first run.</td></tr>
+              <tr><td class="key">--budget-usd N</td><td>Cap each <em>individual</em> agent call. A twelve-ticket spec is thirteen or more calls, so this is not a run total.</td></tr>
+              <tr><td class="key">--skip-tickets</td><td>The tickets already exist. Use when resuming after fixing something.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>For a repo's first run, use <code>--no-merge</code> and set <code>maxParallel</code> to <code>1</code>, so a setup mistake surfaces once instead of three times at once.</p>
+      </section>
+
+      <!-- 5 -->
+      <section id="frontier">
+        <h2 class="sec"><span class="num">05</span><span>How it schedules</span></h2>
+        <p>There is no plan and no dependency graph held in memory. Every round asks one question — <em>which tickets can be built right now?</em> — and dispatches whatever comes back. A ticket is eligible when it is open, unclaimed, labelled <code>ready-for-agent</code>, and has zero open blockers.</p>
+        <p>Parallelism and sequencing both fall out of that. Tickets with no blocking edge between them simply appear together; a blocked one does not appear until its blocker closes. Below is the real fixture run.</p>
+
+        <div class="rounds bleed">
+          <div class="round">
+            <div class="label">Round 1</div>
+            <div class="tickets">
+              <div class="ticket build"><span class="id">#4 normalise</span><span class="st">blocked_by 0 · building</span></div>
+              <div class="ticket build"><span class="id">#5 truncate</span><span class="st">blocked_by 0 · building</span></div>
+              <div class="ticket held"><span class="id">#6 slugify</span><span class="st">blocked_by 1 · held</span></div>
+            </div>
+          </div>
+          <div class="flow">↓ #4 and #5 merge, gates pass, both close</div>
+          <div class="divider"></div>
+          <div class="round">
+            <div class="label">Round 2</div>
+            <div class="tickets">
+              <div class="ticket build"><span class="id">#6 slugify</span><span class="st">blocked_by 0 · building</span></div>
+            </div>
+          </div>
+          <div class="flow">↓ frontier empty, nothing open → <span class="pill done">done</span></div>
+        </div>
+
+        <p>Within a round, builders run concurrently in isolated worktrees, capped by <code>maxParallel</code>. Landing is serialised: each branch merges into the integration branch, the <code>verify</code> commands run <em>after</em> that merge, and only then does the issue close. A slice that was green alone can still break a sibling merged in the same round, which is exactly what the post-merge gate catches.</p>
+      </section>
+
+      <!-- 6 -->
+      <section id="config">
+        <h2 class="sec"><span class="num">06</span><span>Config reference</span></h2>
+        <p>Everything foundry knows about your repo lives in <code>foundry.config.json</code>. Only <code>verify</code> is required.</p>
+
+        <div class="tablewrap bleed">
+          <table>
+            <thead><tr><th>Key</th><th>Type</th><th>What it is for</th></tr></thead>
+            <tbody>
+              <tr><td class="key">verify</td><td>string[]</td><td><strong>Required.</strong> Commands that must exit 0 for work to count as green. Run from the repo root after every merge.</td></tr>
+              <tr><td class="key">maxParallel</td><td>number</td><td>Concurrent builders. Defaults to 4. Set to 1 for a first run, or for any repo whose tests share a resource you cannot isolate.</td></tr>
+              <tr><td class="key">verifyEnv</td><td>object</td><td>Environment for the <code>verify</code> commands, which run in your <strong>main</strong> working tree. Without it, a database-backed suite runs repeatedly, unattended, against whatever your own <code>.env</code> points at.</td></tr>
+              <tr><td class="key">builderEnv</td><td>object</td><td>Environment for each builder. This is where per-ticket isolation comes from.</td></tr>
+              <tr><td class="key">builderSetup</td><td>string[]</td><td>Run in the builder's worktree before it starts. A failure fails that ticket.</td></tr>
+              <tr><td class="key">builderTeardown</td><td>string[]</td><td>Run after the builder finishes, pass or fail, so a failed ticket does not leak its resources.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Placeholders</h3>
+        <p>Available in <code>builderEnv</code>, <code>builderSetup</code> and <code>builderTeardown</code>.</p>
+        <div class="tablewrap bleed">
+          <table>
+            <thead><tr><th>Placeholder</th><th>Expands to</th><th>Why you need it</th></tr></thead>
+            <tbody>
+              <tr><td class="key">{ticket}</td><td>The ticket number</td><td>What makes one builder's resources distinct from its siblings'. A per-ticket database name is the usual use.</td></tr>
+              <tr><td class="key">{repoRoot}</td><td>The main checkout</td><td>A fresh worktree has none of your gitignored files. Linking to the main checkout is far cheaper than an install per ticket.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 7 -->
+      <section id="stop">
+        <h2 class="sec"><span class="num">07</span><span>How it ends</span></h2>
+        <p>Every round either closes a ticket or trips a check, so the run terminates on its own. There are exactly three ways out.</p>
+
+        <div class="tablewrap bleed">
+          <table>
+            <thead><tr><th>Stop</th><th>What happened</th><th>What you get</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><span class="pill done">done</span></td>
+                <td>No open tickets left.</td>
+                <td>A pull request, merged if it qualifies.</td>
+              </tr>
+              <tr>
+                <td><span class="pill dead">deadlock</span></td>
+                <td>The only tickets left are blocked by ones a builder failed.</td>
+                <td>A PR for what landed, plus the tickets that are stuck and why.</td>
+              </tr>
+              <tr>
+                <td><span class="pill stall">stall</span></td>
+                <td>Two consecutive rounds closed nothing.</td>
+                <td>The last round's failures, verbatim.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>The process exits <code>0</code> only on <span class="pill done">done</span> with nothing handed back. Anything else exits <code>1</code>, so a partial run cannot be mistaken for a finished feature by whatever called it.</p>
+
+        <div class="note stop">
+          <span class="tag">A failed ticket is never retried</span>
+          <p>It loses <code>ready-for-agent</code>, becomes <code>ready-for-human</code>, and stays off the frontier. Anything depending on it deadlocks — loudly, and on purpose. A loop that retries a failing ticket burns the whole budget on the one thing that cannot work. Re-running the program rebuilds nothing.</p>
+        </div>
+      </section>
+
+      <!-- 8 -->
+      <section id="merge">
+        <h2 class="sec"><span class="num">08</span><span>The merge decision</span></h2>
+        <p>Four boolean checks, all in code. A clean run merges its own pull request with a merge commit — not a squash, so the per-ticket commits and their issue numbers survive in <code>git log</code>.</p>
+        <ul class="plain">
+          <li>The run reached <span class="pill done">done</span> — every ticket closed, none handed back.</li>
+          <li>The <code>verify</code> commands are green on the integration branch after the last merge.</li>
+          <li><code>gh pr checks</code> is green. A repo with no CI passes this trivially: there is nothing to be red.</li>
+          <li>You did not pass <code>--no-merge</code>.</li>
+        </ul>
+        <p>A <span class="pill dead">deadlock</span> or <span class="pill stall">stall</span> never merges — those states contain failed tickets by definition, and merging one would put known-incomplete work on your default branch under a green-looking PR.</p>
+        <div class="note stop">
+          <span class="tag">Never routed around</span>
+          <p>No <code>--admin</code>, no force, no retry of a refused merge. If branch protection or a required review blocks it, the refusal is reported verbatim and the PR stays open. A protection rule is a decision you already made.</p>
+        </div>
+      </section>
+
+      <!-- 9 -->
+      <section id="recover">
+        <h2 class="sec"><span class="num">09</span><span>When it goes wrong</span></h2>
+
+        <h3>An interrupted run</h3>
+        <p>A claimed ticket is invisible to the frontier — that is what stops two builders taking the same one. So a run killed mid-round leaves its tickets assigned with no builder behind them, and the next run finds an empty frontier and reports a deadlock that is not real.</p>
+<pre><code>npx tsx ~/foundry/orchestrator/src/cli.ts release <span class="k">&lt;spec#&gt;</span></code></pre>
+        <p>This un-claims every open ticket under the spec. It deliberately leaves labels alone: a ticket a builder genuinely failed is <code>ready-for-human</code> and should stay that way.</p>
+
+        <h3>A genuinely failed ticket</h3>
+        <p>Fix it by hand, re-label it <code>ready-for-agent</code>, and run again with <code>--skip-tickets</code>. There is no retry mechanism and that is deliberate.</p>
+
+        <h3>Leftover worktrees</h3>
+        <p>Foundry creates only <code>ticket-&lt;n&gt;</code> directories and removes only those. It will never touch worktrees you created yourself, even though they share <code>.claude/worktrees/</code>.</p>
+      </section>
+
+      <!-- 10 -->
+      <section id="gotchas">
+        <h2 class="sec"><span class="num">10</span><span>Hard-won gotchas</span></h2>
+        <p class="lede">Five things that were invisible in the source and only appeared when the pipeline was run against real repositories. Three are fixed in foundry; two are yours to configure.</p>
+
+        <h3>A fresh worktree has none of your gitignored files</h3>
+        <p>No <code>node_modules</code>, and no <code>.env</code>. They are gitignored, so they are not in the checkout. The failure does not look like a missing file — one project's database driver reads its proxy host from <code>.env</code>, so the first builder migration died with <code>ECONNREFUSED</code>. Link both in <code>builderSetup</code>.</p>
+
+        <h3>The gates run in your main working tree</h3>
+        <p>Not in a worktree. So without <code>verifyEnv</code>, a database-backed suite runs against your real local development data, repeatedly, unattended. Point it somewhere disposable — and remember that database has to exist and be migrated before the first run.</p>
+
+        <h3>Same-round builders collide on any file they must all create</h3>
+        <p>Every builder in a round branches from the same base. If your CI requires a <code>CHANGELOG.md</code> entry, all of them write one, and the second merge is an add/add conflict. Foundry now resolves this: the model merges the text, code verifies no conflict markers remain, and the gates still decide green. Before that fix, a perfectly good ticket was thrown away over a changelog.</p>
+
+        <h3>GitHub's dependency summary is eventually consistent</h3>
+        <p>A freshly written <code>blocked_by</code> edge reads back as <code>0</code>, <code>0</code>, then <code>1</code>. The first frontier is computed moments after ticket creation, so a blocked ticket can look ready. One run reported three tickets ready when only two were; a concurrency cap of 2 is the only reason it did not build a slice against a dependency that did not exist. Foundry now waits for every edge it wrote to become visible, and fails loudly rather than starting on data it cannot trust.</p>
+
+        <h3>A local git identity override lands every commit unverified</h3>
+        <p>A repo-local <code>user.email</code> silently beats correct global settings. Every commit lands <em>Unverified</em> with reason <code>no_user</code>, which you only notice by reading the repo on github.com afterwards. Foundry warns at preflight rather than refusing — plenty of repos legitimately do not sign.</p>
+      </section>
+
+      <!-- 11 -->
+      <section id="examples">
+        <h2 class="sec"><span class="num">11</span><span>Two real configs</span></h2>
+
+        <h3>A repo with no shared state</h3>
+        <p>Plain JavaScript, no dependencies, tests touch nothing outside the process. Almost nothing to configure.</p>
+<pre><code>{
+  <span class="k">"verify"</span>: ["npm test"],
+  <span class="k">"maxParallel"</span>: 2
+}</code></pre>
+
+        <h3>A Next.js app whose tests need Postgres</h3>
+        <p>Every builder gets its own database and its own linked dependencies; the gates get a separate database again so they never touch your development data.</p>
+<pre><code>{
+  <span class="k">"verify"</span>: ["npm run typecheck", "npm test"],
+  <span class="k">"maxParallel"</span>: 3,
+  <span class="k">"verifyEnv"</span>:  { "DATABASE_URL": "postgres://user:pw@localhost:5432/app_foundry" },
+  <span class="k">"builderEnv"</span>: { "DATABASE_URL": "postgres://user:pw@localhost:5432/app_t{ticket}" },
+  <span class="k">"builderSetup"</span>: [
+    "ln -sfn {repoRoot}/node_modules node_modules",
+    "ln -sfn {repoRoot}/.env .env",
+    "docker exec app-postgres createdb -U user app_t{ticket}",
+    "npm run db:migrate"
+  ],
+  <span class="k">"builderTeardown"</span>: [
+    "docker exec app-postgres dropdb --if-exists -U user app_t{ticket}"
+  ]
+}</code></pre>
+        <p>If you cannot isolate a shared resource, set <code>maxParallel</code> to <code>1</code>. Sequential is slower, but four builders racing one database fail for reasons that have nothing to do with their code — and every one of those failures costs you a ticket that is never retried.</p>
+      </section>
+
+      <footer>
+        <p>Foundry is a private hub-and-spoke pipeline: one repo holds the skills and the orchestrator, and every issue, branch and pull request belongs to the project it runs in. Proven end to end on 2026-08-31; the self-merge path is still unexercised.</p>
+      </footer>
+
+    </main>
+  </div>
+</div>
