@@ -38,11 +38,11 @@ export async function ship(opts: {
     `Stop condition: **${loop.stop}**.`,
   ].join("\n");
 
-  const pr = await gh.createPr(
+  const { number: pr, created } = await gh.createPr(
     { title: `foundry: spec #${spec}`, body, base, head: integration },
     repoDir,
   );
-  log(`opened PR #${pr}`);
+  log(created ? `opened PR #${pr}` : `updated PR #${pr} (already open for ${integration})`);
 
   const result: RunResult = { ...loop, prNumber: pr, merged: false };
 

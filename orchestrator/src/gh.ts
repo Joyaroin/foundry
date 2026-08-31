@@ -124,16 +124,37 @@ export async function ensureLabels(cwd: string): Promise<void> {
   }
 }
 
+/**
+ * The run's pull request, created or brought up to date.
+ *
+ * **Idempotent on purpose.** A run that stops on a deadlock leaves its PR open, and the whole
+ * point of fixing what deadlocked it is to run again against the same integration branch. `gh pr
+ * create` fails on a branch that already has one, and it failed *after* the build loop had already
+ * done its work — so the second run's entire outcome was lost to an error about bookkeeping. An
+ * existing PR is the expected state of a resumed run, not a conflict, so it is adopted and its
+ * body refreshed with this run's tallies.
+ */
 export async function createPr(
   opts: { title: string; body: string; base: string; head: string },
   cwd: string,
-): Promise<number> {
+): Promise<{ number: number; created: boolean }> {
+  const found = await tryRun(
+    "gh",
+    ["pr", "list", "--head", opts.head, "--base", opts.base, "--state", "open", "--json", "number", "--jq", ".[0].number"],
+    cwd,
+  );
+  const existing = found.ok ? Number(found.stdout.trim()) : Number.NaN;
+  if (Number.isInteger(existing) && existing > 0) {
+    await run("gh", ["pr", "edit", String(existing), "--title", opts.title, "--body", opts.body], cwd);
+    return { number: existing, created: false };
+  }
+
   const url = await run(
     "gh",
     ["pr", "create", "--title", opts.title, "--body", opts.body, "--base", opts.base, "--head", opts.head],
     cwd,
   );
-  return Number(url.trim().split("/").pop());
+  return { number: Number(url.trim().split("/").pop()), created: true };
 }
 
 /** Green, red, or "this repo has no checks", which is a pass — there is nothing to be red. */
