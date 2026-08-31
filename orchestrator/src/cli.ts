@@ -8,6 +8,7 @@ import { PLUGIN_PATH, WORKTREE_DIR } from "./config.js";
 import * as git from "./git.js";
 import * as gh from "./gh.js";
 import { ship } from "./ship.js";
+import { signingWarnings } from "./signing.js";
 import { writeTickets } from "./tickets.js";
 import type { SpokeConfig } from "./types.js";
 
@@ -138,6 +139,7 @@ async function main(): Promise<void> {
 
   log(`foundry: ${repo}, spec #${spec}, base ${base}`);
   log(`auth   : ${credential().detail}`);
+  for (const w of await signingWarnings(repoDir)) log(`warning: ${w}`);
 
   // Phase 3 — tickets.
   if (skipTickets) {
