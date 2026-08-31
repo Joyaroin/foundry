@@ -135,6 +135,37 @@ supported path for that.
 `--budget-usd N` caps each **individual** agent call, not the run total — a twelve-ticket spec is
 thirteen or more calls.
 
+## Two things a live run taught it
+
+Both were found by running the whole pipeline against `Joyaroin/harness-fixture`, and neither is
+visible from reading the code.
+
+**Same-round builders collide on any file they all must create.** Every builder in a round branches
+from the same base, so if the repo requires (say) a `CHANGELOG.md` entry, the second merge is an
+add/add conflict. The first run handed a perfectly good ticket back over exactly that. The loop now
+resolves the conflict — the model merges the text, and the tree is checked for remaining conflicts
+before the gates run as normal.
+
+**GitHub's dependency summary is eventually consistent.** A freshly written `blocked_by` edge read
+back as `0`, `0`, then `1`. The build loop computes its first frontier moments after ticket creation,
+so a blocked ticket can look ready and be built before its blocker exists. The first run saw
+`3 ready` when only 2 were; `maxParallel: 2` is the only reason it did not build `slugify` against a
+`normalise` that did not exist. `writeTickets` now waits for every edge it wrote to become visible,
+and fails loudly after 60s rather than starting the loop on data it cannot trust.
+
+## Recovering an interrupted run
+
+A claimed ticket is invisible to the frontier — that is what stops two builders taking the same one.
+So a run killed mid-round leaves its tickets assigned with no builder behind them, and the next run
+finds an empty frontier and reports a deadlock that is not real.
+
+```bash
+foundry release <spec-issue>
+```
+
+Un-claims every open ticket under the spec. It deliberately leaves labels alone: a ticket a builder
+genuinely failed is `ready-for-human` and should stay that way.
+
 ## Exit code
 
 `0` only when the run reached `done` with nothing handed back. Any other outcome exits `1`, so a

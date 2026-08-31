@@ -1,6 +1,6 @@
 # foundry
 
-The `/foundry` pipeline — grill → spec → tickets → parallel build → PR → merge. A Claude Code
+The `/foundry` pipeline — grill → spec → tickets → parallel build → PR → merge. A Codex
 plugin for the attended half, an Agent SDK program (`orchestrator/`) for the unattended half.
 Attended through the spec, unattended after it. See `README.md` for the shape.
 
@@ -13,12 +13,12 @@ been exercised.
 
 ## The two constraints, and the order they came in
 
-**Comprehensibility.** Its predecessor, `/ship` in `Joyaroin/claude-config`, was 1,889 lines and got
+**Comprehensibility.** Its predecessor, `/ship` in `Joyaroin/Codex-config`, was 1,889 lines and got
 deleted unused (`3c1aa4a`, 2026-08-18) because Adham could not own it. No clever shell, no generated
 control flow, no abstraction with one caller. When you add something, the honest question is not
 "does this work" but "could he change it next month".
 
-**Determinism.** On 2026-08-27 Adham asked for the Claude Agent SDK, having been told the tradeoff:
+**Determinism.** On 2026-08-27 Adham asked for the Codex Agent SDK, having been told the tradeoff:
 a markdown loop is advisory, and nothing stops a session skipping a stop condition or merging a run
 with failures in it. His words: *"i want the determinism. thats the point of this agent."*
 
@@ -31,7 +31,7 @@ thing Adham asked for.
 
 ## Self-containment
 
-This plugin reads nothing from `~/.claude` and syncs with nothing there. The vendored skills have
+This plugin reads nothing from `~/.Codex` and syncs with nothing there. The vendored skills have
 already diverged from their originals on purpose:
 
 - `to-tickets` had its "quiz the user" step replaced — foundry publishes tickets unattended
@@ -46,18 +46,18 @@ already diverged from their originals on purpose:
   builder that asks a question stalls its whole round. Its `codebase-design` and `code-review`
   references are now conditional or redirected for the same reason
 
-Do not "fix" these back toward the originals, and do not pull updates from `~/.claude/skills/`.
+Do not "fix" these back toward the originals, and do not pull updates from `~/.Codex/skills/`.
 
 ## Hub and spoke
 
 The hub holds no per-project state. Every issue, branch and PR belongs to the spoke repo the run
 executes in. Nothing project-specific gets written here — that was the failure mode that pushed
-project status out of the global `CLAUDE.md` in the first place.
+project status out of the global `AGENTS.md` in the first place.
 
 ## Auth
 
-Local runs use Claude Code's own OAuth credentials — verified 2026-08-27, `query()` with no
-`ANTHROPIC_API_KEY` authenticated off `~/.claude/.credentials.json` and succeeded. So a run costs
+Local runs use Codex's own OAuth credentials — verified 2026-08-27, `query()` with no
+`ANTHROPIC_API_KEY` authenticated off `~/.Codex/.credentials.json` and succeeded. So a run costs
 subscription quota, not API billing. `src/auth.ts` reports which of the three sources preflight
 found; it does not do the resolving, the SDK does.
 
@@ -78,22 +78,12 @@ Schemas describe, they never verify. Keep the `git.branchExists()` cross-check a
 coming from `git.verify()` exit codes. And keep the backwards-edge check in `tickets.ts`: a JSON
 Schema cannot express it, and it is what makes a dependency cycle unrepresentable.
 
-## Never delete `.claude/worktrees/`
+## Never delete `.Codex/worktrees/`
 
 A spoke keeps its own worktrees there — MediaSafe has 28, two of them locked. `pruneWorktrees`
 once deleted the whole directory and would have destroyed all of them. It now removes only
 `ticket-<n>` paths, which are the only ones foundry creates. Do not "simplify" it back to an rm
 of the parent.
-
-## Proven, 2026-08-31
-
-Full pipeline run against `Joyaroin/harness-fixture`: 3 tickets, 2 built in parallel, 1 correctly
-held behind its blocker and built in round 2, all closed, PR #8 opened, CI green, 11 tests passing.
-Exit 0. Two bugs found on the way — same-round merge collisions and the dependency-edge race — both
-fixed, both documented in `orchestrator/README.md`.
-
-Do not remove the `waitForEdges` call in `tickets.ts`. It looks like defensive padding; it is not.
-Without it the loop can build a ticket before its blocker exists, and nothing downstream notices.
 
 ## Rules for the unattended half
 

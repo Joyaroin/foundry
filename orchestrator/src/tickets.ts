@@ -121,14 +121,51 @@ export async function writeTickets(spec: number, repoDir: string): Promise<numbe
     numbers.push(n);
     await gh.addSubIssue(repo, spec, n, repoDir);
   }
+  const shouldBeBlocked: number[] = [];
   for (const [i, t] of draft.tickets.entries()) {
     for (const b of t.blockedBy) {
       const blocked = numbers[i];
       const blocker = numbers[b - 1];
       if (blocked === undefined || blocker === undefined) continue;
       await gh.addBlockedBy(repo, blocked, blocker, repoDir);
+      if (!shouldBeBlocked.includes(blocked)) shouldBeBlocked.push(blocked);
     }
   }
 
+  await waitForEdges(repo, shouldBeBlocked, repoDir);
   return numbers;
+}
+
+/**
+ * Wait until GitHub reports the edges we just wrote.
+ *
+ * `issue_dependencies_summary.blocked_by` is eventually consistent: measured on a live repo, a
+ * freshly recorded edge read back as 0, 0, then 1. The build loop computes its first frontier
+ * moments after this function returns, so without the wait a blocked ticket looks ready and gets
+ * built before its blocker exists — silently, and only when the concurrency cap is wide enough to
+ * reach it. A run that once escaped this did so because the cap was 2.
+ *
+ * Failing loudly is the right end state: building in the wrong order corrupts the run in a way
+ * nothing downstream would notice.
+ */
+async function waitForEdges(repo: string, blocked: number[], repoDir: string): Promise<void> {
+  if (blocked.length === 0) return;
+
+  const deadline = Date.now() + 60_000;
+  for (;;) {
+    const lagging: number[] = [];
+    for (const n of blocked) {
+      const summary = await gh.blockedBy(repo, n, repoDir);
+      if (summary === 0) lagging.push(n);
+    }
+    if (lagging.length === 0) return;
+    if (Date.now() > deadline) {
+      throw new Error(
+        `GitHub still reports no blockers for #${lagging.join(", #")} 60s after the edges were ` +
+          `recorded. Refusing to start the build loop: a blocked ticket that looks ready would be ` +
+          `built before the work it depends on exists.`,
+      );
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
 }

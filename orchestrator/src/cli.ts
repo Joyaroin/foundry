@@ -12,7 +12,8 @@ import { writeTickets } from "./tickets.js";
 import type { SpokeConfig } from "./types.js";
 
 /**
- * foundry run <spec-issue> [--no-merge] [--budget-usd N] [--skip-tickets]
+ * foundry run     <spec-issue> [--no-merge] [--budget-usd N] [--skip-tickets]
+ * foundry release <spec-issue>
  *
  * The unattended half. Phases 0-2 (preflight, grilling, spec) happen in Claude Code,
  * because grilling needs a human; this program starts once the spec is approved.
@@ -25,8 +26,33 @@ const die = (msg: string): never => {
 };
 
 function usage(): never {
-  console.error("usage: foundry run <spec-issue> [--no-merge] [--budget-usd N] [--skip-tickets]");
+  console.error("usage: foundry run     <spec-issue> [--no-merge] [--budget-usd N] [--skip-tickets]");
+  console.error("       foundry release <spec-issue>");
   process.exit(2);
+}
+
+/**
+ * Un-claim every ticket still assigned from an interrupted run.
+ *
+ * A claimed ticket is invisible to the frontier — that is what stops two builders taking the same
+ * one. So a run killed mid-round leaves its tickets assigned with no builder behind them, and the
+ * next run finds an empty frontier and reports a deadlock that is not real. This releases them.
+ * It deliberately does not touch labels: a ticket a builder genuinely failed is `ready-for-human`
+ * and should stay that way.
+ */
+async function release(spec: number, repoDir: string): Promise<void> {
+  const repo = await gh.repoSlug(repoDir);
+  const all = await gh.tickets(repo, spec, repoDir);
+  const stuck = all.filter((t) => t.state === "open" && t.assignee !== null);
+  if (stuck.length === 0) {
+    log("nothing to release: no open ticket is claimed");
+    return;
+  }
+  for (const t of stuck) {
+    await gh.unclaim(t.number, repoDir);
+    log(`released #${t.number} ${t.title}`);
+  }
+  log(`released ${stuck.length} ticket(s) back to the frontier`);
 }
 
 async function loadConfig(repoDir: string): Promise<SpokeConfig> {
@@ -85,10 +111,16 @@ async function preflight(repoDir: string): Promise<void> {
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
-  if (argv[0] !== "run") usage();
+  const command = argv[0];
+  if (command !== "run" && command !== "release") usage();
 
   const spec = Number(argv[1]);
   if (!Number.isInteger(spec) || spec <= 0) usage();
+
+  if (command === "release") {
+    await release(spec, await git.repoRoot(process.cwd()));
+    return;
+  }
 
   const noMerge = argv.includes("--no-merge");
   const skipTickets = argv.includes("--skip-tickets");

@@ -78,6 +78,18 @@ export async function abortMerge(cwd: string): Promise<void> {
   await tryRun("git", ["merge", "--abort"], cwd);
 }
 
+/** Paths git could not merge on its own. Empty means the conflict is resolved. */
+export async function conflictedFiles(cwd: string): Promise<string[]> {
+  const out = await run("git", ["diff", "--name-only", "--diff-filter=U"], cwd);
+  return out ? out.split("\n").filter(Boolean) : [];
+}
+
+/** Finish a merge whose conflicts have been resolved and staged. */
+export async function commitMerge(cwd: string, message: string): Promise<{ ok: boolean; detail: string }> {
+  const r = await tryRun("git", ["commit", "--no-edit", "-m", message], cwd);
+  return { ok: r.ok, detail: (r.stderr || r.stdout).trim() };
+}
+
 /** Undo the last merge commit. Used when a slice merges cleanly but fails the gates. */
 export async function revertLastMerge(cwd: string): Promise<void> {
   await run("git", ["reset", "--hard", "HEAD~1"], cwd);

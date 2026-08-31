@@ -69,6 +69,69 @@ function expandAll(
   return Object.fromEntries(Object.entries(values).map(([k, v]) => [k, expand(v, ticket, repoRoot)]));
 }
 
+const RESOLVE_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  additionalProperties: false,
+  required: ["resolved", "detail"],
+  properties: {
+    resolved: { type: "boolean", description: "true only if every conflicted file is resolved and staged." },
+    detail: { type: "string", description: "What you kept from each side, or why it could not be resolved." },
+  },
+};
+
+/**
+ * Resolve an in-progress merge conflict rather than throwing the ticket away.
+ *
+ * Two slices touching one file is the normal case, not a defect: every builder in a round branches
+ * from the same base, so any file they all must create — a changelog is the usual one — collides
+ * add/add on the second merge. Handing that ticket back would discard good work over a bookkeeping
+ * file.
+ *
+ * The model resolves the text; code decides whether the result counts. Nothing here trusts the
+ * model's own claim: the staged tree is checked for remaining conflicts, and the gates still run
+ * afterwards exactly as they would for a clean merge.
+ */
+async function resolveConflict(
+  t: Ticket,
+  repoDir: string,
+  branch: string,
+  budgetUsd: number | undefined,
+): Promise<{ ok: boolean; detail: string }> {
+  const files = await git.conflictedFiles(repoDir);
+  if (files.length === 0) return { ok: false, detail: "merge failed but git reports no conflicted files" };
+
+  const run = await agent(
+    [
+      `A merge of ${branch} into the integration branch has stopped on conflicts.`,
+      ``,
+      `Conflicted files:`,
+      ...files.map((f) => `  ${f}`),
+      ``,
+      `Resolve every one of them, keeping BOTH sides' intent — these are two independent slices of`,
+      `the same feature, so neither side's content is wrong and neither should simply be discarded.`,
+      `For an append-only file such as a changelog, that means keeping both entries.`,
+      ``,
+      `Edit the files, remove every conflict marker, and \`git add\` each one. Do NOT commit, do not`,
+      `\`git merge --abort\`, and do not change any file that was not conflicted.`,
+    ].join("\n"),
+    {
+      cwd: repoDir,
+      maxTurns: 40,
+      schema: RESOLVE_SCHEMA,
+      ...(budgetUsd !== undefined ? { maxBudgetUsd: budgetUsd } : {}),
+    },
+  );
+
+  // The claim is checked against the tree, never taken at face value.
+  const remaining = await git.conflictedFiles(repoDir);
+  if (remaining.length > 0) {
+    return { ok: false, detail: `still conflicted after the attempt: ${remaining.join(", ")} (${run.detail})` };
+  }
+  const committed = await git.commitMerge(repoDir, `Merge ${branch} (conflicts resolved)`);
+  if (!committed.ok) return { ok: false, detail: `could not commit the resolved merge: ${committed.detail}` };
+  return { ok: true, detail: `resolved ${files.join(", ")}` };
+}
+
 function slug(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
 }
@@ -190,6 +253,8 @@ async function land(
   t: Ticket,
   repoDir: string,
   config: SpokeConfig,
+  budgetUsd: number | undefined,
+  log: (msg: string) => void,
 ): Promise<TicketOutcome> {
   if (report.outcome === "failure") {
     const reason = report.error ?? "builder reported failure without an error";
@@ -199,10 +264,19 @@ async function land(
 
   const merge = await git.mergeBranch(report.branch, repoDir);
   if (!merge.ok) {
-    if (merge.conflict) await git.abortMerge(repoDir);
-    const reason = `merge into the integration branch failed: ${merge.detail}`;
-    await gh.handBack(t.number, `${reason}\n\nResolve by hand and re-run.`, repoDir);
-    return { ticket: t.number, title: t.title, result: "handed-back", reason };
+    if (!merge.conflict) {
+      const reason = `merge into the integration branch failed: ${merge.detail}`;
+      await gh.handBack(t.number, `${reason}\n\nResolve by hand and re-run.`, repoDir);
+      return { ticket: t.number, title: t.title, result: "handed-back", reason };
+    }
+    const fix = await resolveConflict(t, repoDir, report.branch, budgetUsd);
+    if (!fix.ok) {
+      await git.abortMerge(repoDir);
+      const reason = `merge conflict could not be resolved: ${fix.detail}`;
+      await gh.handBack(t.number, `${reason}\n\nResolve by hand and re-run.`, repoDir);
+      return { ticket: t.number, title: t.title, result: "handed-back", reason };
+    }
+    log(`  #${t.number} merge conflict resolved (${fix.detail})`);
   }
 
   // A slice that was green alone can still break a sibling merged in the same round.
@@ -263,7 +337,7 @@ export async function buildLoop(opts: {
     for (const [i, report] of reports.entries()) {
       const t = batch[i];
       if (!t) continue;
-      const outcome = await land(report, t, repoDir, config);
+      const outcome = await land(report, t, repoDir, config, opts.budgetUsd, log);
       if (outcome.result === "closed") {
         closed.push(outcome);
         closedThisRound += 1;

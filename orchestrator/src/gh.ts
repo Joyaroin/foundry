@@ -53,6 +53,11 @@ export async function claim(n: number, cwd: string): Promise<void> {
   await run("gh", ["issue", "edit", String(n), "--add-assignee", "@me"], cwd);
 }
 
+/** Return a ticket to the frontier without touching its labels. */
+export async function unclaim(n: number, cwd: string): Promise<void> {
+  await run("gh", ["issue", "edit", String(n), "--remove-assignee", "@me"], cwd);
+}
+
 export async function closeTicket(n: number, comment: string, cwd: string): Promise<void> {
   await run("gh", ["issue", "close", String(n), "--comment", comment], cwd);
 }
@@ -101,6 +106,12 @@ export async function tickets(repo: string, spec: number, cwd: string): Promise<
     });
   }
   return out;
+}
+
+/** Open blockers for one issue. Used to confirm a just-written edge is visible. */
+export async function blockedBy(repo: string, n: number, cwd: string): Promise<number> {
+  const v = await api([`repos/${repo}/issues/${n}`, "--jq", ".issue_dependencies_summary.blocked_by"], cwd);
+  return Number(v);
 }
 
 export async function ensureLabels(cwd: string): Promise<void> {
