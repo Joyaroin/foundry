@@ -629,7 +629,24 @@ claude
         <p>Fix it by hand, re-label it <code>ready-for-agent</code>, and run again with <code>--skip-tickets</code>. There is no retry mechanism and that is deliberate.</p>
 
         <h3>Leftover worktrees</h3>
-        <p>Foundry creates only <code>ticket-&lt;n&gt;</code> directories and removes only those. It will never touch worktrees you created yourself, even though they share <code>.claude/worktrees/</code>.</p>
+        <p>A finished run cleans up after itself. An interrupted one leaves <code>ticket-&lt;n&gt;</code> directories behind, and those accumulate.</p>
+<pre><code>npx tsx ~/foundry/orchestrator/src/cli.ts cleanup <span class="c"># dry run</span>
+npx tsx ~/foundry/orchestrator/src/cli.ts cleanup --all --apply</code></pre>
+        <p>Nothing is removed without <code>--apply</code>. What removal actually costs is what decides the rules: taking away a worktree does <strong>not</strong> delete its branch, so committed work survives and can be checked out again. Only uncommitted changes are gone for good.</p>
+
+        <div class="tablewrap bleed">
+          <table>
+            <thead><tr><th>Worktree</th><th>Verdict</th></tr></thead>
+            <tbody>
+              <tr><td><code>ticket-&lt;n&gt;</code> from an interrupted run</td><td>Removed — this is foundry's own debris.</td></tr>
+              <tr><td>Clean and unlocked</td><td>Removed with <code>--all</code>. Any unmerged commits are reported, because the branch is now the only copy.</td></tr>
+              <tr><td>Uncommitted changes</td><td><strong>Never removed.</strong> The one irreversible loss.</td></tr>
+              <tr><td>Locked</td><td><strong>Never removed.</strong> Locking is a deliberate act by someone.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>Without <code>--all</code> it touches only its own <code>ticket-&lt;n&gt;</code> directories, even though they share <code>.claude/worktrees/</code> with yours. A run's debris is foundry's to clean; another developer's worktree is not.</p>
       </section>
 
       <!-- 10 -->
