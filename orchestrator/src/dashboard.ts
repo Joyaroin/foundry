@@ -33,12 +33,24 @@ import { fileURLToPath } from "node:url";
 const PAGE = fileURLToPath(new URL("./dashboard.html", import.meta.url));
 const POLL_MS = 400;
 
-/** Read from `offset` to the end, returning the whole lines found and where to resume. */
-async function readFrom(path: string, offset: number): Promise<{ text: string; next: number }> {
+/**
+ * Read from `offset` to the end, returning the whole lines found and where to resume.
+ *
+ * `truncated` is the signal that matters as much as the text: `run` empties this file at the
+ * start of every run, so a file that is now *shorter* than where we were reading is not a
+ * quiet no-op — it is a different run. Without saying so, a page opened during one run keeps
+ * every card and line from it and appends the next run underneath, which is worse than
+ * showing nothing.
+ */
+async function readFrom(
+  path: string,
+  offset: number,
+): Promise<{ text: string; next: number; truncated: boolean }> {
   const handle = await open(path, "r");
   try {
     const { size } = await handle.stat();
-    if (size <= offset) return { text: "", next: size };
+    if (size < offset) return { text: "", next: 0, truncated: true };
+    if (size === offset) return { text: "", next: size, truncated: false };
     const length = size - offset;
     const buffer = Buffer.alloc(length);
     await handle.read(buffer, 0, length, offset);
@@ -47,8 +59,9 @@ async function readFrom(path: string, offset: number): Promise<{ text: string; n
     // Resume at the last newline, so a line still being written is read whole next tick
     // rather than delivered in two halves that each fail to parse.
     const cut = text.lastIndexOf("\n");
-    if (cut < 0) return { text: "", next: offset };
-    return { text: text.slice(0, cut + 1), next: offset + Buffer.byteLength(text.slice(0, cut + 1)) };
+    if (cut < 0) return { text: "", next: offset, truncated: false };
+    const whole = text.slice(0, cut + 1);
+    return { text: whole, next: offset + Buffer.byteLength(whole), truncated: false };
   } finally {
     await handle.close();
   }
@@ -82,8 +95,11 @@ export async function dashboard(opts: {
         if (stopped) return;
         try {
           await stat(logPath);
-          const { text, next } = await readFrom(logPath, offset);
+          const { text, next, truncated } = await readFrom(logPath, offset);
           offset = next;
+          // A new run. The page throws away the last one rather than growing a second
+          // history under it, and the next tick replays this run from the top.
+          if (truncated) sse(res, "reset", "new run");
           if (text.length > 0) sse(res, "lines", text.replace(/\n$/, ""));
         } catch {
           // The log does not exist yet — a dashboard opened before the run starts is a

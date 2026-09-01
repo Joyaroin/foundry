@@ -289,6 +289,7 @@ function ticket(n){
   let t = state.tickets.get(n);
   if (!t){
     t = { n, title:"", branch:"", phase:null, chip:"queued", say:"", start:null, end:null,
+          builderEnd:null, waiting:false, took:null,
           result:null, gate:null, gates:[], setups:[] };
     state.tickets.set(n, t);
     state.order.push(n);
@@ -370,15 +371,21 @@ function feed(raw){
   }
   if (hit = msg.match(RE.fin)){
     const t = ticket(hit[1]);
-    t.chip = "finished"; t.took = hit[2];
+    t.took = hit[2];
+    t.builderEnd = ts;
     const bad = /limit|error|failed/i.test(hit[3]);
+    // Landing is serialised across the round, so a builder that is done is not a ticket
+    // that is done — it is queued behind a sibling. A ticking clock and a running pip
+    // would both be claiming work that has stopped.
+    t.chip = bad ? "failed" : "waiting to land";
+    t.waiting = !bad;
     if (bad){ t.say = hit[3]; }
     return { cls:bad?"bad":"evt", ts:m[1], badge:"#"+hit[1], text:"builder finished in " + hit[2] + (bad ? " — " + hit[3] : "") };
   }
   if (hit = msg.match(RE.teard)) return { cls:"", ts:m[1], badge:"#"+hit[1], text:"teardown" };
 
   if (hit = msg.match(RE.merge)){
-    const t = ticket(hit[1]); t.phase = "merge"; t.chip = "merging";
+    const t = ticket(hit[1]); t.phase = "merge"; t.chip = "merging"; t.waiting = false;
     t.title = t.title || titleFromBranch(hit[2]);
     return { cls:"gate", ts:m[1], badge:"#"+hit[1], text:"merging" };
   }
@@ -468,6 +475,7 @@ function render(){
     }
     const kind = t.result === "closed" ? "closed" : t.result === "failed" ? "failed"
                : (t.phase === "merge" || t.phase === "gate") ? "landing"
+               : t.waiting ? "landing"
                : t.phase ? "working" : "";
     el.className = "card " + kind;
     el.querySelector(".num").textContent = "#" + t.n;
@@ -475,7 +483,8 @@ function render(){
     el.querySelector(".chip").textContent = t.chip;
 
     const e = el.querySelector(".elapsed");
-    e.textContent = t.start == null ? "" : (t.end != null ? dur(t.end - t.start) : dur(now - t.start));
+    const stop = t.end ?? (t.waiting ? t.builderEnd : null);
+    e.textContent = t.start == null ? "" : dur((stop ?? now) - t.start);
 
     const say = el.querySelector(".say");
     say.innerHTML = t.say ? "" : "<em>—</em>";
@@ -486,11 +495,12 @@ function render(){
     if (ph.children.length !== PHASES.length){
       ph.innerHTML = PHASES.map(()=>'<span class="ph"></span>').join("");
     }
+    const at = t.waiting ? idx + 1 : idx;          // build is finished; nothing is running
     [...ph.children].forEach((c,i) => {
       c.className = "ph"
-        + (i < idx ? " done" + (t.result === "closed" ? " ok" : "") : "")
-        + (i === idx && !t.result ? " now" + (t.phase === "merge" || t.phase === "gate" ? " land" : "") : "")
-        + (t.result === "closed" && i < PHASES.length ? " done ok" : "");
+        + (i < at ? " done" + (t.result === "closed" ? " ok" : "") : "")
+        + (i === at && !t.result && !t.waiting ? " now" + (t.phase === "merge" || t.phase === "gate" ? " land" : "") : "")
+        + (t.result === "closed" ? " done ok" : "");
     });
   }
 
@@ -529,13 +539,27 @@ function push(ev){
   while (lines.children.length > MAX_LINES) lines.removeChild(lines.firstChild);
 }
 
-let pinned = true;
+var pinned = true;
 scroller.addEventListener("scroll", () => {
   pinned = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 40;
 });
 
 /* ── Wire ────────────────────────────────────────────────────────────── */
+/* The log is emptied at the start of every run, so the server says so and this throws the
+   last run away. Without it a page left open across two runs shows both at once. */
+function reset(){
+  for (const k of ["repo","spec","base","auth","cap","ready","pr","prVerb","merged","stop","started","last"]) state[k] = null;
+  state.round = 0; state.closed = 0; state.back = 0; state.total = 0; state.finished = false;
+  state.tickets.clear(); state.order.length = 0;
+  cardEls.clear();
+  $("cards").innerHTML = "";
+  lines.innerHTML = "";
+  $("outcome").className = "outcome";
+  pinned = true;
+}
+
 const es = new EventSource("/events");
+es.addEventListener("reset", () => { reset(); render(); });
 es.addEventListener("lines", (e) => {
   for (const raw of e.data.split("\n")) push(feed(raw));
   render();
