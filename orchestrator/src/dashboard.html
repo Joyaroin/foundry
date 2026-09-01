@@ -102,8 +102,10 @@
     border:1px solid var(--hair);border-radius:var(--r);
     background:linear-gradient(180deg,var(--panel-2),var(--panel));
     padding:14px 16px 15px;
-    animation:enter .5s var(--spring) both;
   }
+  /* One-shot: on the base class this replayed on every class-list write, which at a 1Hz
+     render is a flicker rather than an entrance. The class is removed when it finishes. */
+  .card.enter{animation:enter .5s var(--spring) both}
   @keyframes enter{from{opacity:0;transform:translateY(9px) scale(.985)}to{opacity:1;transform:none}}
 
   /* A working card is lit from its left edge, and the light travels. Nothing else on the
@@ -470,6 +472,8 @@ function render(){
         '<div class="say"></div>'+
         '<div class="phases"></div>'+
         '<div class="phlabels">'+PHASES.map(p=>"<span>"+p+"</span>").join("")+"</div>";
+      el.className = "card enter";
+      el.addEventListener("animationend", () => el.classList.remove("enter"), { once: true });
       cardEls.set(n, el);
       wrap.appendChild(el);
     }
@@ -477,7 +481,9 @@ function render(){
                : (t.phase === "merge" || t.phase === "gate") ? "landing"
                : t.waiting ? "landing"
                : t.phase ? "working" : "";
-    el.className = "card " + kind;
+    // Toggled, never reassigned wholesale: rewriting className restarts every animation
+    // on the element, and this runs once a second.
+    for (const k of ["working","landing","closed","failed"]) el.classList.toggle(k, k === kind);
     el.querySelector(".num").textContent = "#" + t.n;
     el.querySelector(".title").textContent = t.title || "—";
     el.querySelector(".chip").textContent = t.chip;
@@ -506,10 +512,14 @@ function render(){
 
   // Cards ordered so what is happening is at the top and what is finished settles below.
   const rank = (t) => t.result ? 2 : (t.phase ? 0 : 1);
-  [...state.order]
+  const wanted = [...state.order]
     .map(n => state.tickets.get(n))
     .sort((a,b) => rank(a) - rank(b) || Number(a.n) - Number(b.n))
-    .forEach(t => wrap.appendChild(cardEls.get(t.n)));
+    .map(t => cardEls.get(t.n));
+
+  const same = wanted.length === wrap.children.length
+    && wanted.every((el, i) => wrap.children[i] === el);
+  if (!same) for (const el of wanted) wrap.appendChild(el);
 
   const out = $("outcome");
   if (state.finished){
