@@ -1,10 +1,11 @@
 #!/usr/bin/env -S npx tsx
-import { existsSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { credential } from "./auth.js";
 import { buildLoop } from "./build.js";
 import { cleanup } from "./cleanup.js";
+import { dashboard } from "./dashboard.js";
 import { PLUGIN_PATH, WORKTREE_DIR } from "./config.js";
 import * as git from "./git.js";
 import * as gh from "./gh.js";
@@ -22,19 +23,41 @@ import type { SpokeConfig } from "./types.js";
  * because grilling needs a human; this program starts once the spec is approved.
  */
 
+/**
+ * Where `run` mirrors its own output, so `foundry dashboard` has somewhere to look without
+ * being told and without the caller having to remember to `tee`. Under `.claude/`, which
+ * every spoke already gitignores because the worktrees live there.
+ */
+export const RUN_LOG = ".claude/foundry-run.log";
+
+/** Set once the repo is known; until then the log only prints. */
+let mirror: string | null = null;
+
 /** Every line stamped. A run takes tens of minutes and several builders interleave on one
  *  stream, so "when did this happen, and how long was that gap" is not answerable otherwise. */
-const log = (msg: string) =>
-  console.log(msg === "" ? "" : `${new Date().toTimeString().slice(0, 8)} ${msg}`);
+const log = (msg: string) => {
+  const line = msg === "" ? "" : `${new Date().toTimeString().slice(0, 8)} ${msg}`;
+  console.log(line);
+  // Best effort by design: a dashboard that cannot be written to must never take a run
+  // down with it.
+  if (mirror !== null) {
+    try {
+      appendFileSync(mirror, line + "\n");
+    } catch {
+      mirror = null;
+    }
+  }
+};
 const die = (msg: string): never => {
   console.error(`foundry: ${msg}`);
   process.exit(1);
 };
 
 function usage(): never {
-  console.error("usage: foundry run     <spec-issue> [--no-merge] [--budget-usd N] [--skip-tickets]");
-  console.error("       foundry release <spec-issue>");
-  console.error("       foundry cleanup [--all] [--apply]");
+  console.error("usage: foundry run       <spec-issue> [--no-merge] [--budget-usd N] [--skip-tickets]");
+  console.error("       foundry release   <spec-issue>");
+  console.error("       foundry cleanup   [--all] [--apply]");
+  console.error("       foundry dashboard [log-file] [--port N]");
   process.exit(2);
 }
 
@@ -119,7 +142,19 @@ async function preflight(repoDir: string): Promise<void> {
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const command = argv[0];
-  if (command !== "run" && command !== "release" && command !== "cleanup") usage();
+  if (command !== "run" && command !== "release" && command !== "cleanup" && command !== "dashboard") {
+    usage();
+  }
+
+  if (command === "dashboard") {
+    const portIdx = argv.indexOf("--port");
+    const port = portIdx >= 0 ? Number(argv[portIdx + 1]) : 4317;
+    if (!Number.isInteger(port) || port <= 0) usage();
+    const given = argv.slice(1).find((a) => !a.startsWith("--") && a !== String(port));
+    const logPath = given ?? join(await git.repoRoot(process.cwd()), RUN_LOG);
+    await dashboard({ logPath, port, log });
+    return;
+  }
 
   if (command === "cleanup") {
     await cleanup(await git.repoRoot(process.cwd()), {
@@ -146,6 +181,16 @@ async function main(): Promise<void> {
 
   const repoDir = await git.repoRoot(process.cwd());
   await preflight(repoDir);
+
+  // Truncated rather than appended: the dashboard shows *this* run, and a log that
+  // accumulated across runs would replay three finished ones before the live one.
+  try {
+    mkdirSync(join(repoDir, ".claude"), { recursive: true });
+    writeFileSync(join(repoDir, RUN_LOG), "");
+    mirror = join(repoDir, RUN_LOG);
+  } catch {
+    mirror = null;
+  }
 
   const config = await loadConfig(repoDir);
   const repo = await gh.repoSlug(repoDir);

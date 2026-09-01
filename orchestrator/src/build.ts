@@ -199,6 +199,10 @@ async function build(
   let worktree: string | undefined;
 
   try {
+    // The title, said once and in full. The branch slug is capped at 40 characters, so a
+    // reader — or `foundry dashboard` — reconstructing the title from the branch gets it
+    // cut mid-word. This is the only place the loop knows it and the cheapest place to say it.
+    log(`  #${t.number} title: ${t.title}`);
     worktree = await git.addWorktree(repoDir, t.number, integration);
     log(`  #${t.number} worktree cut from ${integration}`);
 
