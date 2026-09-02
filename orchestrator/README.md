@@ -135,6 +135,12 @@ supported path for that.
 `--budget-usd N` caps each **individual** agent call, not the run total — a twelve-ticket spec is
 thirteen or more calls.
 
+**Builders run on Sonnet; the orchestrator's own calls run on Opus.** Ticket writing and conflict
+resolution are the judgement calls and stay on Opus. A builder starts with its spec, its seams and
+its exported symbols already decided, so what is left is writing code and getting the gates green —
+and builders are where nearly all the tokens go, four at a time. Both models are named in
+`config.ts` (`MODEL`, `BUILDER_MODEL`); a per-call `model` on `agent()` overrides the default.
+
 ## Two things a live run taught it
 
 Both were found by running the whole pipeline against `Joyaroin/harness-fixture`, and neither is

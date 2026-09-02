@@ -18,5 +18,13 @@ export const WORKTREE_DIR = ".claude/worktrees";
 /** The plugin whose skills and builder agent every query loads. */
 export const PLUGIN_PATH = new URL("../../plugin", import.meta.url).pathname;
 
-/** Model for every agent call. */
+/** Model for the orchestrator's own calls: ticket writing and conflict resolution. */
 export const MODEL = "claude-opus-5";
+
+/**
+ * Model for builders. A ticket is a bounded slice with its spec, its seams and its exported
+ * symbols already decided, so the judgement Opus buys has been spent by the time a builder starts;
+ * what is left is writing the code and getting the gates green. Sonnet does that at a fraction of
+ * the cost, and four of them run at once.
+ */
+export const BUILDER_MODEL = "claude-sonnet-5";

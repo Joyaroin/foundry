@@ -1,5 +1,5 @@
 import { agent } from "./agent.js";
-import { MAX_PARALLEL, STALL_ROUNDS } from "./config.js";
+import { BUILDER_MODEL, MAX_PARALLEL, STALL_ROUNDS } from "./config.js";
 import { tryShell } from "./sh.js";
 import { frontier, open, stranded } from "./frontier.js";
 import * as git from "./git.js";
@@ -224,6 +224,7 @@ async function build(
     log(`  #${t.number} builder started on ${branch}`);
     const run = await agent(builderPrompt(t, spec, integration, branch), {
       cwd: worktree,
+      model: BUILDER_MODEL,
       maxTurns: 300,
       schema: REPORT_SCHEMA,
       onText: (text) => narrate(t.number, text, log),

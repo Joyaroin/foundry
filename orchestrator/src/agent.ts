@@ -33,6 +33,8 @@ export type AgentRun = {
 
 export type AgentOptions = {
   cwd: string;
+  /** Override the default model for this one call. Builders run on a cheaper one. */
+  model?: string;
   /** Tools the agent may use without asking. Nothing prompts: an unattended run has nobody to ask. */
   allowedTools?: string[];
   maxTurns?: number;
@@ -58,7 +60,7 @@ export async function agent(prompt: string, opts: AgentOptions): Promise<AgentRu
       prompt,
       options: {
         cwd: opts.cwd,
-        model: MODEL,
+        model: opts.model ?? MODEL,
         // The plugin carries every skill the pipeline uses, plus the builder agent.
         plugins: [{ type: "local", path: PLUGIN_PATH }],
         allowedTools: opts.allowedTools ?? DEFAULT_TOOLS,
