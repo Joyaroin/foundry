@@ -61,7 +61,7 @@ export async function agent(prompt: string, opts: AgentOptions): Promise<AgentRu
       options: {
         cwd: opts.cwd,
         model: opts.model ?? MODEL,
-        // The plugin carries every skill the pipeline uses, plus the builder agent.
+        // The plugin carries every skill the pipeline uses.
         plugins: [{ type: "local", path: PLUGIN_PATH }],
         allowedTools: opts.allowedTools ?? DEFAULT_TOOLS,
         // Unattended: there is no human to answer a permission prompt.

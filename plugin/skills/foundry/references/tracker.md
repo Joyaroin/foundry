@@ -16,7 +16,7 @@ it is the same for every spoke.
 ```
 
 The spec is a plain issue. Every ticket is a **sub-issue** of it. Blocking edges are **native issue
-dependencies**. `frontier.sh` walks exactly this structure; nothing else is read.
+dependencies**. The frontier (`orchestrator/src/frontier.ts`) walks exactly this structure; nothing else is read.
 
 ## Labels
 
@@ -87,7 +87,7 @@ are how a later run's `git log` explains itself. Never `--admin` — see the plu
 
 ## Why the assignee matters
 
-`frontier.sh` drops any ticket with an assignee. Claiming a ticket *before* dispatching its builder
+The frontier (`orchestrator/src/frontier.ts`) drops any ticket with an assignee. Claiming a ticket *before* dispatching its builder
 is what keeps the next round from handing the same ticket to a second agent. Un-assigning is
 therefore how a failed ticket is released — and foundry deliberately does not release it, so that
 a failure stops the chain that depends on it instead of being retried forever.

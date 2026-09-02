@@ -6,8 +6,5 @@
     "name": "Adham Sedik"
   },
   "repository": "https://github.com/Joyaroin/foundry",
-  "skills": "./skills/",
-  "agents": [
-    "./agents/builder.md"
-  ]
+  "skills": "./skills/"
 }

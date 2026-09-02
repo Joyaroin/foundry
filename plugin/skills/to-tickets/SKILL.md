@@ -60,7 +60,7 @@ and stop the run rather than inventing the missing decision.
 Publish the tickets to the spoke repo's GitHub Issues, in dependency order (blockers first) so
 each ticket's blocking edges can reference real numbers. Each ticket is a **sub-issue of the spec**,
 labelled `ready-for-agent`, with every blocking edge recorded as a **native GitHub dependency** —
-that dependency is what `frontier.sh` reads to decide what can be built. The prose "Blocked by"
+that dependency is what the frontier (`orchestrator/src/frontier.ts`) reads to decide what can be built. The prose "Blocked by"
 line stays in the body for humans.
 
 `foundry/references/tracker.md` has the exact `gh` commands, including the one trap: sub-issue and

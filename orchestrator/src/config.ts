@@ -15,7 +15,7 @@ export const STALL_ROUNDS = 2;
 /** Where builder worktrees live in the spoke repo. Must be gitignored. */
 export const WORKTREE_DIR = ".claude/worktrees";
 
-/** The plugin whose skills and builder agent every query loads. */
+/** The plugin whose skills every query loads. */
 export const PLUGIN_PATH = new URL("../../plugin", import.meta.url).pathname;
 
 /** Model for the orchestrator's own calls: ticket writing and conflict resolution. */

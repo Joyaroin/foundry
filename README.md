@@ -33,7 +33,7 @@ and PR it creates belongs to that spoke. The hub holds no per-project state.
 
 ```
               ┌─────────────┐
-              │   foundry   │  hub: skills, builder agent, frontier.sh
+              │   foundry   │  hub: skills + the orchestrator program
               └──────┬──────┘
         ┌────────────┼────────────┐
    ┌────▼───┐   ┌────▼───┐   ┌────▼────┐
@@ -82,7 +82,6 @@ Checked in Phase 0, all refuse-to-run:
 | `plugin/skills/foundry/references/tracker.md` | the GitHub issue conventions, and the `gh` commands |
 | `plugin/skills/{grilling,to-spec,to-tickets,implement}/` | the four pipeline stages |
 | `plugin/skills/tdd/` | the testing discipline `implement` works to |
-| `plugin/agents/builder.md` | builds exactly one ticket, in its own worktree, on its own branch |
 | `orchestrator/` | the unattended half: the Agent SDK program that runs phases 3-5 |
 | `orchestrator/src/frontier.ts` | which tickets can be built right now — the whole scheduler |
 
