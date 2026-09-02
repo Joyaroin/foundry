@@ -141,10 +141,10 @@ its exported symbols already decided, so what is left is writing code and gettin
 and builders are where nearly all the tokens go, four at a time. Both models are named in
 `config.ts` (`MODEL`, `BUILDER_MODEL`); a per-call `model` on `agent()` overrides the default.
 
-## Two things a live run taught it
+## Three things running it taught it
 
-Both were found by running the whole pipeline against `Joyaroin/harness-fixture`, and neither is
-visible from reading the code.
+The first two were found by running the whole pipeline against `Joyaroin/harness-fixture`; the
+third by probing the SDK directly. None is visible from reading the code.
 
 **Same-round builders collide on any file they all must create.** Every builder in a round branches
 from the same base, so if the repo requires (say) a `CHANGELOG.md` entry, the second merge is an
@@ -158,6 +158,14 @@ so a blocked ticket can look ready and be built before its blocker exists. The f
 `3 ready` when only 2 were; `maxParallel: 2` is the only reason it did not build `slugify` against a
 `normalise` that did not exist. `writeTickets` now waits for every edge it wrote to become visible,
 and fails loudly after 60s rather than starting the loop on data it cannot trust.
+
+**`settingSources: []` hides the spoke's `CLAUDE.md`, not just your personal settings.** The two
+travel together: `'project'` is the only source that loads `CLAUDE.md` at all, so isolating a run
+from the machine also isolated every builder from the conventions of the repo it was building in.
+The setting is now `['project']`. Probed 2026-09-02 against SDK 0.3.250, with a sentinel string in
+a scratch repo: `[]` saw nothing, `['project']` saw the repo's `CLAUDE.md` and not `~/.claude/CLAUDE.md`,
+and `['user','project']` saw both — so the middle result is a real exclusion, not a blind probe.
+Discovery also works from a worktree nested under `.claude/worktrees/`.
 
 ## Cleaning up worktrees
 

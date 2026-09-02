@@ -66,8 +66,10 @@ export async function agent(prompt: string, opts: AgentOptions): Promise<AgentRu
         allowedTools: opts.allowedTools ?? DEFAULT_TOOLS,
         // Unattended: there is no human to answer a permission prompt.
         permissionMode: "bypassPermissions",
-        // Do not inherit Adham's personal settings; a run must behave the same anywhere.
-        settingSources: [],
+        // The spoke's own settings and CLAUDE.md, never the machine's personal ones. "project"
+        // is also the only source that loads CLAUDE.md at all: with [], a builder cannot see the
+        // conventions of the repo it is building in. Verified 2026-09-02 — see README.
+        settingSources: ["project"],
         ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
         ...(opts.maxBudgetUsd !== undefined ? { maxBudgetUsd: opts.maxBudgetUsd } : {}),
         ...(opts.schema ? { outputFormat: { type: "json_schema" as const, schema: opts.schema } } : {}),
