@@ -112,6 +112,11 @@ export async function commitsAhead(branch: string, base: string, repo: string): 
   return r.ok ? Number(r.stdout) || 0 : 0;
 }
 
+/** The commit a ref points at. */
+export async function revParse(ref: string, cwd: string): Promise<string> {
+  return run("git", ["rev-parse", "--verify", ref], cwd);
+}
+
 export async function branchExists(name: string, cwd: string): Promise<boolean> {
   return (await tryRun("git", ["rev-parse", "--verify", `refs/heads/${name}`], cwd)).ok;
 }

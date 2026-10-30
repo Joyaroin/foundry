@@ -8,7 +8,9 @@ Attended through the spec, unattended after it. See `README.md` for the shape.
 
 v0.2.0. Proven end to end against `harness-fixture` on 2026-08-31 — see **Proven** below for what
 that run actually covered. Never exercised: the merge path (`--no-merge` on every run so far), and
-any spoke with real dependencies or a database.
+any spoke with real dependencies or a database. The review step (`review.ts`, added 2026-10-29)
+has been run against a scratch repo — it rejected a missing criterion and a test that could not
+fail, and approved a complete one — but never inside a full run.
 
 Say what has and has not been run. "Typechecks" is not "works" — every bug found so far was
 invisible to the compiler.
@@ -27,9 +29,14 @@ with failures in it. His words: *"i want the determinism. thats the point of thi
 These pull against each other and the resolution is a split, not a compromise. Phases 0-2 stay
 markdown because grilling is a conversation. Phases 3-5 are TypeScript because they must not drift.
 **Anything that decides the shape of a run belongs in code**; the model is asked for judgement in
-exactly two places — what the tickets are, and the code inside one ticket. `orchestrator/README.md`
-holds that table, and it is the contract. Moving a decision from code back into a prompt undoes the
-thing Adham asked for.
+two places — what the tickets are, and the code inside one ticket — plus one that is veto-only: a
+review of each built ticket that can reject it and can never pass it. A review that does not finish
+rejects. `orchestrator/README.md` holds that table, and it is the contract. Moving a decision from
+code back into a prompt undoes the thing Adham asked for.
+
+Adham added the review on 2026-10-29, for code quality: green gates only prove the builder's own
+tests pass. Keep it one-way. A reviewer that could approve on its own, or whose verdict code
+interprets loosely, is a model deciding the shape of the run.
 
 ## Self-containment
 
@@ -68,7 +75,7 @@ wrong: it would have refused to start a run that authenticates perfectly well.
 
 ## Model-to-code handoffs
 
-Both agent calls use `outputFormat: { type: "json_schema" }`. The SDK validates and retries on a
+Every agent call — tickets, builder, conflict resolution, review — uses `outputFormat: { type: "json_schema" }`. The SDK validates and retries on a
 mismatch, so control flow never interprets prose. Verified live 2026-08-27.
 
 An earlier draft had each agent write a JSON file the program then read. Do not go back to that: it
@@ -78,7 +85,16 @@ builder's worktree is deleted in a `finally` block.
 
 Schemas describe, they never verify. Keep the `git.branchExists()` cross-check and keep "green"
 coming from `git.verify()` exit codes. And keep the backwards-edge check in `tickets.ts`: a JSON
-Schema cannot express it, and it is what makes a dependency cycle unrepresentable.
+Schema cannot express it, and it is what makes a dependency cycle unrepresentable. The same goes
+for the reviewer: its verdict is void if the branch tip moved while it looked.
+
+## `disable-model-invocation` does not hide a skill from a builder
+
+`implement`, `to-spec` and `to-tickets` carry it, and the prompts still say "follow the
+/foundry:implement skill". That works: probed 2026-10-29 against SDK 0.3.250, a builder given the
+real prompt wording called the Skill tool for `foundry:implement` and then `foundry:tdd`, and with
+file reads disabled it could still quote a sentinel planted in the skill. The flag keeps the skills
+out of an ordinary session's auto-invocation; do not remove it to "fix" the builders.
 
 ## Cleanup classifies before it deletes
 

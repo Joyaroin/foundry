@@ -246,7 +246,7 @@
    Every rule about what a log line means lives here and nowhere else. The
    server tails a file; this decides what the file says. */
 
-const PHASES = ["worktree", "setup", "build", "merge", "gate", "done"];
+const PHASES = ["worktree", "setup", "build", "review", "merge", "gate", "done"];
 
 const state = {
   repo:null, spec:null, base:null, auth:null,
@@ -310,6 +310,8 @@ const RE = {
   start:  /^ {2}#(\d+) builder started on (.+)$/,
   say:    /^ {2}#(\d+) \| (.*)$/,
   fin:    /^ {2}#(\d+) builder finished in (\S+) \((.*)\)$/,
+  rev:    /^ {2}#(\d+) review started$/,
+  verdict:/^ {2}#(\d+) review: (approved|rejected) \((.*)\)$/,
   teard:  /^ {2}#(\d+) teardown(?: failed \(not fatal\))?: (.+)$/,
   merge:  /^ {2}#(\d+) merging (.+)$/,
   confl:  /^ {2}#(\d+) merge conflict resolved \((.*)\)$/,
@@ -383,6 +385,16 @@ function feed(raw){
     t.waiting = !bad;
     if (bad){ t.say = hit[3]; }
     return { cls:bad?"bad":"evt", ts:m[1], badge:"#"+hit[1], text:"builder finished in " + hit[2] + (bad ? " — " + hit[3] : "") };
+  }
+  // Review follows the builder in the same slot, so it is running work, not waiting to land.
+  if (hit = msg.match(RE.rev)){
+    const t = ticket(hit[1]); t.phase = "review"; t.chip = "reviewing"; t.waiting = false;
+    return { cls:"evt", ts:m[1], badge:"#"+hit[1], text:"review started" };
+  }
+  if (hit = msg.match(RE.verdict)){
+    const t = ticket(hit[1]); const ok = hit[2] === "approved";
+    t.builderEnd = ts; t.waiting = ok; t.chip = ok ? "waiting to land" : "rejected"; t.say = hit[3];
+    return { cls:ok?"ok":"bad", ts:m[1], badge:"#"+hit[1], text:"review " + hit[2] + " — " + hit[3] };
   }
   if (hit = msg.match(RE.teard)) return { cls:"", ts:m[1], badge:"#"+hit[1], text:"teardown" };
 

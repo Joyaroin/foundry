@@ -37,6 +37,8 @@ export type AgentOptions = {
   model?: string;
   /** Tools the agent may use without asking. Nothing prompts: an unattended run has nobody to ask. */
   allowedTools?: string[];
+  /** Tools removed from the agent entirely. How the reviewer is kept from editing. */
+  disallowedTools?: string[];
   maxTurns?: number;
   /** Hard ceiling in USD for this one call. The SDK aborts past it. */
   maxBudgetUsd?: number;
@@ -64,6 +66,7 @@ export async function agent(prompt: string, opts: AgentOptions): Promise<AgentRu
         // The plugin carries every skill the pipeline uses.
         plugins: [{ type: "local", path: PLUGIN_PATH }],
         allowedTools: opts.allowedTools ?? DEFAULT_TOOLS,
+        ...(opts.disallowedTools ? { disallowedTools: opts.disallowedTools } : {}),
         // Unattended: there is no human to answer a permission prompt.
         permissionMode: "bypassPermissions",
         // The spoke's own settings and CLAUDE.md, never the machine's personal ones. "project"

@@ -424,7 +424,7 @@
           <div class="phase un"><span class="n">05</span><span class="t">PR &amp; merge</span><span class="who">unattended</span></div>
         </div>
 
-        <p>You grill, you approve the spec. After that nothing asks you a question until it hands you a pull request. The model is consulted in exactly two places for the rest of the run — what the tickets are, and the code inside one ticket. Everything else is code.</p>
+        <p>You grill, you approve the spec. After that nothing asks you a question until it hands you a pull request. The model is consulted in two places for the rest of the run — what the tickets are, and the code inside one ticket — plus a review of each built ticket that can reject it but never pass it. Everything else is code.</p>
 
         <div class="note good">
           <span class="tag">Proven 2026-08-31</span>
@@ -494,7 +494,6 @@ claude
             <tbody>
               <tr><td class="key">--no-merge</td><td>Stop at an open pull request instead of merging it. Use this for a repo's first run.</td></tr>
               <tr><td class="key">--budget-usd N</td><td>Cap each <em>individual</em> agent call. A twelve-ticket spec is thirteen or more calls, so this is not a run total.</td></tr>
-              <tr><td class="key">--skip-tickets</td><td>The tickets already exist. Use when resuming after fixing something.</td></tr>
             </tbody>
           </table>
         </div>
@@ -626,7 +625,7 @@ claude
         <p>This un-claims every open ticket under the spec. It deliberately leaves labels alone: a ticket a builder genuinely failed is <code>ready-for-human</code> and should stay that way.</p>
 
         <h3>A genuinely failed ticket</h3>
-        <p>Fix it by hand, re-label it <code>ready-for-agent</code>, and run again with <code>--skip-tickets</code>. There is no retry mechanism and that is deliberate.</p>
+        <p>Fix it by hand, re-label it <code>ready-for-agent</code>, and run again — it sees the tickets already exist and resumes with them. There is no retry mechanism and that is deliberate.</p>
 
         <h3>Leftover worktrees</h3>
         <p>A finished run cleans up after itself. An interrupted one leaves <code>ticket-&lt;n&gt;</code> directories behind, and those accumulate.</p>

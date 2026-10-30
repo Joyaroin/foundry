@@ -108,6 +108,31 @@ export async function tickets(repo: string, spec: number, cwd: string): Promise<
   return out;
 }
 
+/** An issue's title, body and comments as plain text — what a reviewer is given to judge against. */
+export async function issueText(n: number, cwd: string): Promise<string> {
+  return run("gh", ["issue", "view", String(n), "--comments"], cwd);
+}
+
+export async function comment(n: number, body: string, cwd: string): Promise<void> {
+  await run("gh", ["issue", "comment", String(n), "--body", body], cwd);
+}
+
+/**
+ * Written on the spec as the last step of publishing its tickets. Sub-issues existing is not
+ * enough to resume on: a run that died halfway through publishing leaves some of them, and
+ * building a partial set would reach `done` — and merge — with tickets that were never written.
+ */
+export const PUBLISHED_MARKER = "<!-- foundry:tickets-published -->";
+
+export async function ticketsPublished(spec: number, cwd: string): Promise<boolean> {
+  const n = await run(
+    "gh",
+    ["issue", "view", String(spec), "--json", "comments", "--jq", `[.comments[].body | select(contains("${PUBLISHED_MARKER}"))] | length`],
+    cwd,
+  );
+  return Number(n) > 0;
+}
+
 /** Open blockers for one issue. Used to confirm a just-written edge is visible. */
 export async function blockedBy(repo: string, n: number, cwd: string): Promise<number> {
   const v = await api([`repos/${repo}/issues/${n}`, "--jq", ".issue_dependencies_summary.blocked_by"], cwd);
@@ -157,13 +182,26 @@ export async function createPr(
   return { number: Number(url.trim().split("/").pop()), created: true };
 }
 
-/** Green, red, or "this repo has no checks", which is a pass — there is nothing to be red. */
+/**
+ * Green, red, or "this repo has no checks", which is a pass — there is nothing to be red.
+ *
+ * "No checks" is only believed after it has held for a minute. This runs seconds after the push,
+ * and CI registers its checks a few seconds after that — the same eventual consistency as the
+ * dependency edges in `tickets.ts`. Read once, a repo whose CI simply had not started yet looked
+ * like a repo with no CI, and the run merged without waiting for it.
+ */
 export async function prChecks(pr: number, cwd: string): Promise<{ ok: boolean; detail: string }> {
-  const r = await tryRun("gh", ["pr", "checks", String(pr), "--watch"], cwd);
-  if (r.ok) return { ok: true, detail: "checks green" };
-  const noise = `${r.stdout}\n${r.stderr}`;
-  if (/no checks reported|no checks found/i.test(noise)) return { ok: true, detail: "no checks configured" };
-  return { ok: false, detail: noise.trim() || `gh pr checks exited ${r.code}` };
+  const deadline = Date.now() + 60_000;
+  for (;;) {
+    const r = await tryRun("gh", ["pr", "checks", String(pr), "--watch"], cwd);
+    if (r.ok) return { ok: true, detail: "checks green" };
+    const noise = `${r.stdout}\n${r.stderr}`;
+    if (!/no checks reported|no checks found/i.test(noise)) {
+      return { ok: false, detail: noise.trim() || `gh pr checks exited ${r.code}` };
+    }
+    if (Date.now() > deadline) return { ok: true, detail: "no checks configured" };
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  }
 }
 
 /** Never --admin, never force. A refusal is reported, not routed around. */

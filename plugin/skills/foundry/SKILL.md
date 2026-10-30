@@ -108,7 +108,12 @@ just no longer decides what happens to them. That determinism is the point of th
 **If it exits non-zero**, the run did not finish cleanly. Report its output verbatim — the stop
 condition, the handed-back tickets and the reason each one failed. Do not re-run it to "try again":
 a failed ticket is deliberately never retried, so a second run rebuilds nothing and only re-opens
-the same deadlock.
+the same deadlock. Running again is how a run *resumes* once Adham has fixed a handed-back ticket
+and re-labelled it `ready-for-agent`: the program sees the tickets already exist, reuses them and
+the open PR, and writes none.
+
+If it stopped because the spec is missing a decision, it says which one and has commented it on the
+spec. That is Phase 2 finishing too early: revise the spec with him, then run again.
 
 ## What the program needs
 

@@ -1,4 +1,5 @@
 import { agent } from "./agent.js";
+import { review } from "./review.js";
 import { BUILDER_MODEL, MAX_PARALLEL, STALL_ROUNDS } from "./config.js";
 import { tryShell } from "./sh.js";
 import { frontier, open, stranded } from "./frontier.js";
@@ -254,7 +255,33 @@ async function build(
         error: `builder reported success but never created branch ${branch}`,
       };
     }
-    return { ...report, ticket: t.number, branch };
+    if (report.outcome === "failure") return { ...report, ticket: t.number, branch };
+
+    // Runs here, concurrently with the round's other builders, while the worktree and the
+    // builder's own resources still exist for it to run tests against.
+    log(`  #${t.number} review started`);
+    const verdict = await review({
+      ticket: t.number,
+      spec,
+      branch,
+      integration,
+      worktree,
+      repoDir,
+      ...(env ? { env } : {}),
+      ...(budgetUsd !== undefined ? { budgetUsd } : {}),
+      onText: (text) => narrate(t.number, text, log),
+    });
+    log(`  #${t.number} review: ${verdict.approved ? "approved" : "rejected"} (${verdict.detail.split("\n")[0]})`);
+    if (!verdict.approved) {
+      return {
+        outcome: "failure",
+        ticket: t.number,
+        branch,
+        summary: report.summary,
+        error: `review rejected the ticket:\n${verdict.detail}`,
+      };
+    }
+    return { ...report, ticket: t.number, branch, summary: `${report.summary}\n\n${verdict.detail}` };
   } catch (e) {
     return {
       outcome: "failure",

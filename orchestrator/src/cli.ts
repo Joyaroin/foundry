@@ -6,6 +6,7 @@ import { credential } from "./auth.js";
 import { buildLoop } from "./build.js";
 import { cleanup } from "./cleanup.js";
 import { dashboard } from "./dashboard.js";
+import { open } from "./frontier.js";
 import { PLUGIN_PATH, WORKTREE_DIR } from "./config.js";
 import * as git from "./git.js";
 import * as gh from "./gh.js";
@@ -15,7 +16,7 @@ import { writeTickets } from "./tickets.js";
 import type { SpokeConfig } from "./types.js";
 
 /**
- * foundry run     <spec-issue> [--no-merge] [--budget-usd N] [--skip-tickets]
+ * foundry run     <spec-issue> [--no-merge] [--budget-usd N]
  * foundry release <spec-issue>
  * foundry cleanup [--all] [--apply]
  *
@@ -54,7 +55,7 @@ const die = (msg: string): never => {
 };
 
 function usage(): never {
-  console.error("usage: foundry run       <spec-issue> [--no-merge] [--budget-usd N] [--skip-tickets]");
+  console.error("usage: foundry run       <spec-issue> [--no-merge] [--budget-usd N]");
   console.error("       foundry release   <spec-issue>");
   console.error("       foundry cleanup   [--all] [--apply]");
   console.error("       foundry dashboard [log-file] [--port N]");
@@ -174,7 +175,6 @@ async function main(): Promise<void> {
   }
 
   const noMerge = argv.includes("--no-merge");
-  const skipTickets = argv.includes("--skip-tickets");
   const budgetIdx = argv.indexOf("--budget-usd");
   const budgetUsd = budgetIdx >= 0 ? Number(argv[budgetIdx + 1]) : undefined;
   if (budgetIdx >= 0 && !Number.isFinite(budgetUsd)) usage();
@@ -201,9 +201,16 @@ async function main(): Promise<void> {
   log(`auth   : ${credential().detail}`);
   for (const w of await signingWarnings(repoDir)) log(`warning: ${w}`);
 
-  // Phase 3 — tickets.
-  if (skipTickets) {
-    log("skipping ticket creation (--skip-tickets)");
+  // Phase 3 — tickets, unless this spec already has them. Running again is how a run resumes
+  // after a handed-back ticket is fixed by hand; writing a second set would double every ticket.
+  if (await gh.ticketsPublished(spec, repoDir)) {
+    log(`spec #${spec} already has its tickets — resuming`);
+  } else if (open(await gh.tickets(repo, spec, repoDir)).length > 0) {
+    die(
+      `spec #${spec} has sub-issues, but foundry never finished publishing them — a run died ` +
+        `partway through, and building a partial set could merge with tickets missing.\n` +
+        `Close them and run again, or, if the set is complete, comment ${gh.PUBLISHED_MARKER} on #${spec}.`,
+    );
   } else {
     const created = await writeTickets(spec, repoDir);
     log(`wrote ${created.length} tickets: ${created.map((n) => `#${n}`).join(", ")}`);

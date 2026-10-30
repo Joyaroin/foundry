@@ -17,13 +17,14 @@ into code.
 
 ## What decides what
 
-This is the whole design. The model is asked for judgement in exactly two places; everything else
-is a function call.
+This is the whole design. The model is asked for judgement in two places, plus one review that can
+only say no; everything else is a function call.
 
 | Decision | Who makes it |
 |---|---|
 | What the tickets are, and their dependency edges | **model** (`tickets.ts`, schema-enforced) |
 | The code inside one ticket | **model** (`build.ts`, one builder per worktree) |
+| Whether a built ticket is good enough | **model can only reject** (`review.ts`); code rejects on any unmet criterion, any blocking finding, a missing verdict, or a moved branch |
 | Which tickets are eligible right now | code — `frontier.ts` |
 | How many run at once | code — `MAX_PARALLEL`, `config.ts` |
 | Which issue is claimed, closed, or handed back | code — `gh.ts` |
@@ -44,6 +45,7 @@ agent is explicitly forbidden from touching the tracker: it writes JSON, the pro
 | `build.ts` | the round loop, the concurrency cap, landing work, the stop conditions |
 | `ship.ts` | the pull request and the four-condition merge decision |
 | `tickets.ts` | spec to tickets: one agent call, then deterministic publishing |
+| `review.ts` | the veto: a second model checks each built ticket against its criteria |
 | `frontier.ts` | which tickets are buildable — the entire scheduler, 3 functions |
 | `gh.ts` | every GitHub mutation the run performs |
 | `git.ts` | branches, worktrees, merges, and the verify gates |
@@ -214,3 +216,22 @@ partial run cannot be mistaken for a finished feature by whatever called it.
 A ticket a builder fails loses `ready-for-agent` and never returns to the frontier. Anything
 depending on it stops too, and the loop reports a deadlock. Re-running the program rebuilds nothing
 — it is not a retry mechanism. Fix the ticket by hand, re-label it, and run again.
+
+A ticket the reviewer rejects is handed back the same way, with the review in its comment.
+
+## Running again resumes
+
+The last thing ticket writing does is comment `<!-- foundry:tickets-published -->` on the spec. A
+run that finds it reuses the tickets and the open PR instead of writing new ones. A spec with open
+sub-issues and no marker means an earlier run died while publishing, and the program refuses rather
+than build a partial set that could reach `done` and merge with tickets missing.
+
+If the ticket writer finds the spec silent on a decision a ticket needs, it returns `specDefect`
+instead of tickets. The program comments the missing decision on the spec, publishes nothing, and
+exits 1. Fix the spec and run again.
+
+## CI that has not started yet
+
+`gh pr checks` runs seconds after the push, before CI has registered anything, and "no checks
+reported" then means "not yet", not "none". It is believed only after holding for 60s. A repo with
+no CI therefore pays a minute at the end of a clean run.

@@ -52,8 +52,9 @@ Say once, as a status line, what you are about to publish:
 - how deep the longest blocking chain runs
 
 Then publish. If the breakdown genuinely cannot be drawn from the spec — the spec is silent on
-something a ticket needs — that is a defect in the spec, not a question for him. Say so plainly
-and stop the run rather than inventing the missing decision.
+something a ticket needs — that is a defect in the spec, not a question for him. Inside a foundry
+run, put the missing decision in `specDefect` and return no tickets; the program stops the run and
+records it on the spec. Never invent the missing decision.
 
 ### 5. Publish the tickets to GitHub
 

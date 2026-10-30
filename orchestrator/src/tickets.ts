@@ -16,6 +16,8 @@ import * as gh from "./gh.js";
  */
 
 type Draft = {
+  /** Set instead of guessing when the spec does not settle something a ticket needs. */
+  specDefect?: string;
   tickets: {
     title: string;
     body: string;
@@ -29,9 +31,14 @@ const DRAFT_SCHEMA: Record<string, unknown> = {
   additionalProperties: false,
   required: ["tickets"],
   properties: {
+    specDefect: {
+      type: "string",
+      description:
+        "Only when the spec is silent on a decision some ticket needs: name the missing decision. " +
+        "Leave tickets empty when you set this. The run stops and nothing is published.",
+    },
     tickets: {
       type: "array",
-      minItems: 1,
       items: {
         type: "object",
         additionalProperties: false,
@@ -80,8 +87,7 @@ function assertBackwardEdges(draft: Draft): void {
 
 function isDraft(v: unknown): v is Draft {
   if (typeof v !== "object" || v === null) return false;
-  const tickets = (v as { tickets?: unknown }).tickets;
-  return Array.isArray(tickets) && tickets.length > 0;
+  return Array.isArray((v as { tickets?: unknown }).tickets);
 }
 
 export async function writeTickets(spec: number, repoDir: string): Promise<number[]> {
@@ -99,6 +105,9 @@ export async function writeTickets(spec: number, repoDir: string): Promise<numbe
     ``,
     `Every ticket is a vertical slice: a complete path through every layer, demoable on its own,`,
     `and small enough to fit in one fresh context window.`,
+    ``,
+    `If the spec does not settle a decision some ticket needs, do not invent it: set specDefect to`,
+    `the missing decision and return no tickets.`,
   ].join("\n");
 
   const run = await agent(prompt, { cwd: repoDir, maxTurns: 60, schema: DRAFT_SCHEMA });
@@ -110,6 +119,16 @@ export async function writeTickets(spec: number, repoDir: string): Promise<numbe
     );
   }
   const draft = run.structured;
+
+  // The model's judgement that the spec is incomplete is acted on, never second-guessed: an
+  // invented requirement four tickets deep is worse than a run that stops before it starts.
+  if (draft.specDefect) {
+    await gh.comment(spec, `foundry stopped before writing tickets: the spec does not settle this.\n\n${draft.specDefect}`, repoDir);
+    throw new Error(`the spec is missing a decision, so no tickets were written:\n${draft.specDefect}`);
+  }
+  if (draft.tickets.length === 0) {
+    throw new Error(`the ticket-writing agent returned no tickets and named no spec defect (${run.detail})`);
+  }
   assertBackwardEdges(draft);
 
   const repo = await gh.repoSlug(repoDir);
@@ -133,6 +152,12 @@ export async function writeTickets(spec: number, repoDir: string): Promise<numbe
   }
 
   await waitForEdges(repo, shouldBeBlocked, repoDir);
+  // Last, so its presence means every ticket and every edge is up. See PUBLISHED_MARKER.
+  await gh.comment(
+    spec,
+    `${gh.PUBLISHED_MARKER}\nfoundry published ${numbers.length} tickets: ${numbers.map((n) => `#${n}`).join(", ")}`,
+    repoDir,
+  );
   return numbers;
 }
 
