@@ -428,7 +428,7 @@
 
         <div class="note good">
           <span class="tag">Proven 2026-08-31</span>
-          <p>A full run against <code>harness-fixture</code>: three tickets, two built in parallel, one correctly held behind its blocker and built in round two, all closed, PR opened, CI green, 11 tests passing, exit&nbsp;0. Never exercised yet: the self-merge path, and any spoke with heavy dependencies.</p>
+          <p>A full run against <code>harness-fixture</code>: three tickets, two built in parallel, one correctly held behind its blocker and built in round two, all closed, PR opened, CI green, 11 tests passing, exit&nbsp;0. The self-merge was exercised on 2026-10-29, when a second run reviewed four tickets and merged its own pull request. Never exercised yet: any spoke with heavy dependencies.</p>
         </div>
       </section>
 
@@ -701,7 +701,7 @@ npx tsx ~/foundry/orchestrator/src/cli.ts cleanup --all --apply</code></pre>
       </section>
 
       <footer>
-        <p>Foundry is a private hub-and-spoke pipeline: one repo holds the skills and the orchestrator, and every issue, branch and pull request belongs to the project it runs in. Proven end to end on 2026-08-31; the self-merge path is still unexercised.</p>
+        <p>Foundry is a private hub-and-spoke pipeline: one repo holds the skills and the orchestrator, and every issue, branch and pull request belongs to the project it runs in. Proven end to end on 2026-08-31, and again on 2026-10-29 including the self-merge.</p>
       </footer>
 
     </main>

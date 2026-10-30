@@ -7,9 +7,9 @@ Attended through the spec, unattended after it. See `README.md` for the shape.
 ## Status
 
 v0.3.0. Proven end to end against `harness-fixture`, on 2026-08-31 and again on 2026-10-29 with
-review, file-overlap scheduling and resume — see **Proven** below for what each run covered. Never
-exercised: the merge path (`--no-merge` on every run so far), any spoke with real dependencies or a
-database, and the reviewer rejecting a ticket inside a full run (it has only rejected in a scratch
+review, file-overlap scheduling, resume and the self-merge — see **Proven** below for what each run
+covered. Never exercised: any spoke with real dependencies or a database, a merge refused by branch
+protection, and the reviewer rejecting a ticket inside a full run (it has only rejected in a scratch
 repo; every live ticket so far was approved).
 
 Say what has and has not been run. "Typechecks" is not "works" — every bug found so far was
@@ -136,6 +136,10 @@ tests passing, every exported name exactly as the spec's Shared Interfaces wrote
 - **Resume**: running again said "already has its tickets — resuming" and wrote none. It also
   exposed a bug from `8f4ce9f`: the adopted PR's description was rewritten from the resuming run's
   own tallies, so it listed "Closed (0)". It is now written from the tickets on GitHub.
+- **Merge**: run again without `--no-merge`, it resumed, re-ran the gates, saw CI green and merged
+  PR #16 with `--merge`, so all four ticket commits are on `main`. Spec #11 closed as completed
+  through `Closes #11`, `foundry/spec-11` was deleted locally and on the remote, the checkout was
+  left on an up-to-date `main`, and CI on `main` passed after the merge.
 
 Do not remove the `waitForEdges` call in `tickets.ts`. It looks like defensive padding; it is not.
 Without it the loop can build a ticket before its blocker exists, and nothing downstream notices.
