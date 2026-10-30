@@ -235,7 +235,7 @@ async function main(): Promise<void> {
   });
 
   // Phase 5 — PR, and the merge decision.
-  const result = await ship({ spec, repoDir, integration, base, config, noMerge, loop, log });
+  const result = await ship({ spec, repo, repoDir, integration, base, config, noMerge, loop, log });
 
   await git.pruneWorktrees(repoDir);
 

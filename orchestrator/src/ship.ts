@@ -1,13 +1,36 @@
+import { LABEL_HUMAN } from "./config.js";
+import { open } from "./frontier.js";
 import * as git from "./git.js";
 import * as gh from "./gh.js";
-import type { RunResult, SpokeConfig } from "./types.js";
+import type { RunResult, SpokeConfig, Ticket } from "./types.js";
 
 /**
- * Phase 5 — pull request, then merge.
+ * The pull request's description, from the spec's tickets as GitHub has them.
  *
- * The merge decision is four boolean checks, all evaluated here. No model is consulted,
- * and a refusal from GitHub is reported rather than routed around: never --admin, never force.
+ * Not from this run's tallies: a resumed run adopts the PR an earlier run opened, and its own
+ * tallies cover only what it built. Written from them, a resume that closed the last ticket listed
+ * one ticket under a PR carrying all of them, and one that built nothing listed none.
  */
+export function prBody(spec: number, all: Ticket[], loop: Pick<RunResult, "stop" | "handedBack">): string {
+  const closed = all.filter((t) => t.state === "closed");
+  const handedBack = open(all).filter((t) => t.labels.includes(LABEL_HUMAN));
+  const blocked = open(all).filter((t) => !handedBack.includes(t));
+  const reason = (n: number) => loop.handedBack.find((o) => o.ticket === n)?.reason?.split("\n")[0];
+  const list = (heading: string, ts: Ticket[], note?: (t: Ticket) => string | undefined) =>
+    ts.length
+      ? [``, `**${heading} (${ts.length})**`, ...ts.map((t) => `- #${t.number} ${t.title}${note?.(t) ? ` — ${note(t)}` : ""}`)]
+      : [];
+
+  return [
+    open(all).length === 0 ? `Closes #${spec}` : `Partial run against #${spec}.`,
+    ...list("Closed", closed),
+    ...list("Handed back", handedBack, (t) => reason(t.number)),
+    ...list("Still open", blocked),
+    ``,
+    `Stop condition: **${loop.stop}**.`,
+  ].join("\n");
+}
+
 /** Conditions 1 and 2, which need nothing but the run's own outcome. */
 export function refusal(loop: Pick<RunResult, "stop" | "handedBack">, noMerge: boolean): string | undefined {
   // 1. A clean run only.
@@ -18,8 +41,15 @@ export function refusal(loop: Pick<RunResult, "stop" | "handedBack">, noMerge: b
   return undefined;
 }
 
+/**
+ * Phase 5 — pull request, then merge.
+ *
+ * The merge decision is four boolean checks, all evaluated here. No model is consulted,
+ * and a refusal from GitHub is reported rather than routed around: never --admin, never force.
+ */
 export async function ship(opts: {
   spec: number;
+  repo: string;
   repoDir: string;
   integration: string;
   base: string;
@@ -28,25 +58,11 @@ export async function ship(opts: {
   loop: Omit<RunResult, "prNumber" | "merged" | "mergeSkippedBecause">;
   log: (msg: string) => void;
 }): Promise<RunResult> {
-  const { spec, repoDir, integration, base, config, noMerge, loop, log } = opts;
+  const { spec, repo, repoDir, integration, base, config, noMerge, loop, log } = opts;
 
   await git.push(integration, repoDir);
 
-  const complete = loop.stop === "done" && loop.handedBack.length === 0;
-  const body = [
-    complete ? `Closes #${spec}` : `Partial run against #${spec}.`,
-    ``,
-    `**Closed (${loop.closed.length})**`,
-    ...loop.closed.map((t) => `- #${t.ticket} ${t.title}`),
-    ...(loop.handedBack.length
-      ? [``, `**Handed back (${loop.handedBack.length})**`, ...loop.handedBack.map((t) => `- #${t.ticket} ${t.title} — ${t.reason?.split("\n")[0] ?? ""}`)]
-      : []),
-    ...(loop.stillBlocked.length
-      ? [``, `**Still blocked (${loop.stillBlocked.length})**`, ...loop.stillBlocked.map((t) => `- #${t.number} ${t.title}`)]
-      : []),
-    ``,
-    `Stop condition: **${loop.stop}**.`,
-  ].join("\n");
+  const body = prBody(spec, await gh.tickets(repo, spec, repoDir), loop);
 
   const { number: pr, created } = await gh.createPr(
     { title: `foundry: spec #${spec}`, body, base, head: integration },

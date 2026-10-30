@@ -6,11 +6,11 @@ Attended through the spec, unattended after it. See `README.md` for the shape.
 
 ## Status
 
-v0.3.0. Proven end to end against `harness-fixture` on 2026-08-31 — see **Proven** below for what
-that run actually covered. Never exercised: the merge path (`--no-merge` on every run so far), and
-any spoke with real dependencies or a database. The review step (`review.ts`, added 2026-10-29)
-has been run against a scratch repo — it rejected a missing criterion and a test that could not
-fail, and approved a complete one — but never inside a full run.
+v0.3.0. Proven end to end against `harness-fixture`, on 2026-08-31 and again on 2026-10-29 with
+review, file-overlap scheduling and resume — see **Proven** below for what each run covered. Never
+exercised: the merge path (`--no-merge` on every run so far), any spoke with real dependencies or a
+database, and the reviewer rejecting a ticket inside a full run (it has only rejected in a scratch
+repo; every live ticket so far was approved).
 
 Say what has and has not been run. "Typechecks" is not "works" — every bug found so far was
 invisible to the compiler.
@@ -121,6 +121,21 @@ Full pipeline run against `Joyaroin/harness-fixture`: 3 tickets, 2 built in para
 held behind its blocker and built in round 2, all closed, PR #8 opened, CI green, 11 tests passing.
 Exit 0. Two bugs found on the way — same-round merge collisions and the dependency-edge race — both
 fixed, both documented in `orchestrator/README.md`.
+
+## Proven, 2026-10-29
+
+Spec #11 on `harness-fixture`, `--no-merge`: 4 tickets, exit 0, all closed, PR #16, CI green, 18
+tests passing, every exported name exactly as the spec's Shared Interfaces wrote it.
+
+- **Overlap scheduling**: round 1 had 3 ready tickets and a cap of 2. It built `clamp` (`src/num.js`)
+  beside `initials` (`src/text.js`) and held `reverseWords`, which shares `src/text.js` with
+  `initials`. Round 2 built `percent` (unblocked by `clamp`) beside `reverseWords`.
+- **Review**: all 4 approved, 10-12 criteria each. Each review took 2-4 minutes, longer than the
+  builder it checked, and its notes found real test gaps (an untested lower bound in `percent`)
+  that it rightly did not block on.
+- **Resume**: running again said "already has its tickets — resuming" and wrote none. It also
+  exposed a bug from `8f4ce9f`: the adopted PR's description was rewritten from the resuming run's
+  own tallies, so it listed "Closed (0)". It is now written from the tickets on GitHub.
 
 Do not remove the `waitForEdges` call in `tickets.ts`. It looks like defensive padding; it is not.
 Without it the loop can build a ticket before its blocker exists, and nothing downstream notices.
