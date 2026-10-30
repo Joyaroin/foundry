@@ -1,6 +1,5 @@
 import { agent } from "./agent.js";
 import * as git from "./git.js";
-import * as gh from "./gh.js";
 
 /**
  * Review one built ticket before it may land. The third place a model is asked for judgement,
@@ -100,8 +99,9 @@ function reviewPrompt(ticketText: string, specText: string, integration: string,
 }
 
 export async function review(opts: {
-  ticket: number;
-  spec: number;
+  /** Fetched by the caller rather than left to the reviewer, so what it judges against is a fact of the run. */
+  ticketText: string;
+  specText: string;
   branch: string;
   integration: string;
   worktree: string;
@@ -110,10 +110,7 @@ export async function review(opts: {
   budgetUsd?: number;
   onText?: (text: string) => void;
 }): Promise<{ approved: boolean; detail: string }> {
-  const { ticket, spec, branch, integration, worktree, repoDir } = opts;
-
-  // Fetched here rather than left to the reviewer, so what it judges against is a fact of the run.
-  const [ticketText, specText] = await Promise.all([gh.issueText(ticket, repoDir), gh.issueText(spec, repoDir)]);
+  const { ticketText, specText, branch, integration, worktree, repoDir } = opts;
   const tipBefore = await git.revParse(branch, repoDir);
 
   const run = await agent(reviewPrompt(ticketText, specText, integration, branch), {

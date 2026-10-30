@@ -86,6 +86,18 @@ export function touchesBlock(paths: string[]): string {
   return `${TOUCHES_MARKER}\n**Expected to touch:** ${paths.map((p) => `\`${p}\``).join(", ")}`;
 }
 
+/**
+ * Replace a body's declared files, or add them if it has none. Every old block goes: an issue that
+ * had another folded into it can carry two, and the scheduler reads the first.
+ */
+export function withTouches(body: string | null, paths: string[]): string {
+  const kept = (body ?? "").split("\n");
+  for (let at = kept.findIndex((l) => l.trim() === TOUCHES_MARKER); at >= 0; at = kept.findIndex((l) => l.trim() === TOUCHES_MARKER)) {
+    kept.splice(at, 2);
+  }
+  return `${kept.join("\n").trimEnd()}\n\n${touchesBlock(paths)}`;
+}
+
 export function parseTouches(body: string | null): string[] {
   const at = body?.indexOf(TOUCHES_MARKER) ?? -1;
   if (!body || at < 0) return [];
@@ -93,10 +105,31 @@ export function parseTouches(body: string | null): string[] {
   return [...line.matchAll(/`([^`]+)`/g)].map((m) => m[1]!).filter(Boolean);
 }
 
-/** Every ticket under the spec, with the fields the frontier is computed from. */
+/**
+ * A plan's tickets, listed in the plan issue's body by the program that wrote it. A plan built from
+ * a repo's existing issues cannot make them its sub-issues — GitHub allows one parent, and most
+ * already have a spec — so it names them instead.
+ */
+const PLAN_MARKER = "<!-- foundry:plan";
+
+export function planList(numbers: number[]): string {
+  return `${PLAN_MARKER} ${numbers.join(" ")} -->`;
+}
+
+export function parsePlanList(body: string | null): number[] | null {
+  const m = body?.match(/<!-- foundry:plan ([\d ]*)-->/);
+  return m ? m[1]!.split(" ").filter(Boolean).map(Number) : null;
+}
+
+/** Every ticket in the run: the plan's list if the issue is a plan, its sub-issues otherwise. */
 export async function tickets(repo: string, spec: number, cwd: string): Promise<Ticket[]> {
-  const raw = await api([`repos/${repo}/issues/${spec}/sub_issues`, "--paginate", "--jq", ".[].number"], cwd);
-  const numbers = raw.split("\n").filter(Boolean).map(Number);
+  const listed = parsePlanList(await api([`repos/${repo}/issues/${spec}`, "--jq", ".body"], cwd));
+  const numbers =
+    listed ??
+    (await api([`repos/${repo}/issues/${spec}/sub_issues`, "--paginate", "--jq", ".[].number"], cwd))
+      .split("\n")
+      .filter(Boolean)
+      .map(Number);
 
   const out: Ticket[] = [];
   for (const n of numbers) {
@@ -126,6 +159,83 @@ export async function tickets(repo: string, spec: number, cwd: string): Promise<
     });
   }
   return out;
+}
+
+/** Numbers of every open issue in the repo, pull requests excluded. */
+export async function openIssues(repo: string, cwd: string): Promise<number[]> {
+  const raw = await api(
+    [`repos/${repo}/issues?state=open&per_page=100`, "--paginate", "--jq", ".[] | select(.pull_request | not) | .number"],
+    cwd,
+  );
+  return raw.split("\n").filter(Boolean).map(Number);
+}
+
+export type IssueDetail = {
+  number: number;
+  title: string;
+  body: string;
+  labels: string[];
+  assignees: string[];
+  updatedAt: string;
+  /** Sub-issues it has. A parent is a spec, not a ticket. */
+  children: number;
+};
+
+export async function issueDetail(repo: string, n: number, cwd: string): Promise<IssueDetail> {
+  const i = JSON.parse(await api([`repos/${repo}/issues/${n}`], cwd)) as {
+    number: number;
+    title: string;
+    body: string | null;
+    labels: { name: string }[];
+    assignees: { login: string }[];
+    updated_at: string;
+    sub_issues_summary?: { total: number };
+  };
+  return {
+    number: i.number,
+    title: i.title,
+    body: i.body ?? "",
+    labels: i.labels.map((l) => l.name),
+    assignees: i.assignees.map((a) => a.login),
+    updatedAt: i.updated_at,
+    children: i.sub_issues_summary?.total ?? 0,
+  };
+}
+
+/** The issues this one is blocked by, open or closed, with the database id removal needs. */
+export async function blockers(repo: string, n: number, cwd: string): Promise<{ number: number; id: number; open: boolean }[]> {
+  const raw = await api(
+    [`repos/${repo}/issues/${n}/dependencies/blocked_by`, "--paginate", "--jq", `.[] | "\\(.number) \\(.id) \\(.state)"`],
+    cwd,
+  );
+  return raw
+    .split("\n")
+    .filter(Boolean)
+    .map((l) => l.split(" "))
+    .map(([num, id, state]) => ({ number: Number(num), id: Number(id), open: state === "open" }));
+}
+
+export async function removeBlockedBy(repo: string, blocked: number, blockerId: number, cwd: string): Promise<void> {
+  await api(["--method", "DELETE", `repos/${repo}/issues/${blocked}/dependencies/blocked_by/${blockerId}`], cwd);
+}
+
+/** The issue this one is a sub-issue of, or null. */
+export async function parentOf(repo: string, n: number, cwd: string): Promise<number | null> {
+  const r = await tryRun("gh", ["api", `repos/${repo}/issues/${n}/parent`, "--jq", ".number"], cwd);
+  return r.ok && r.stdout ? Number(r.stdout) : null;
+}
+
+export async function setBody(n: number, body: string, cwd: string): Promise<void> {
+  await run("gh", ["issue", "edit", String(n), "--body", body], cwd);
+}
+
+export async function addLabel(n: number, label: string, cwd: string): Promise<void> {
+  await run("gh", ["issue", "edit", String(n), "--add-label", label], cwd);
+}
+
+/** Closed as a duplicate, not deleted: reopening it undoes the merge. */
+export async function closeAsDuplicate(n: number, of: number, comment: string, cwd: string): Promise<void> {
+  await run("gh", ["issue", "close", String(n), "--duplicate-of", String(of), "--comment", comment], cwd);
 }
 
 type IssueJson = { number: number; title: string; body: string; comments: { author: { login: string } | null; body: string }[] };

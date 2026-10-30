@@ -29,6 +29,7 @@ each one reviewed before it landed, in 11 minutes end to end.</sub>
 | Date | Spec | What happened | Result |
 |---|---|---|---|
 | 2026-08-31 | text helpers | 3 tickets: 2 built in parallel, 1 held behind its blocker until round 2 | [PR #8](https://github.com/Joyaroin/harness-fixture/pull/8) opened, CI green, 11 tests |
+| 2026-10-29 | a messy backlog, via `foundry plan` | 6 existing issues: folded a duplicate pair, added a missing dependency, replaced a wrong one, skipped a vague issue with the question it needs answered, then built the other 4 in 2 rounds | [PR #24](https://github.com/Joyaroin/harness-fixture/pull/24) opened, CI green, 30 tests |
 | 2026-10-29 | number helpers | 4 tickets: one held back a round for sharing a file, all 4 reviewed and approved, both CHANGELOG collisions resolved | [PR #16](https://github.com/Joyaroin/harness-fixture/pull/16) **merged by foundry**, CI green on `main`, 18 tests |
 
 Both runs were against a fixture repo with real CI, which requires a CHANGELOG and bans
@@ -135,6 +136,20 @@ All of these are checked before anything runs, and the run refuses if any fails:
 A repo whose tests share a database or other external resource can give each builder its own copy.
 See [per-builder isolation](orchestrator/README.md#per-builder-isolation).
 
+### Already have issues? Skip the conversation
+
+```bash
+foundry plan            # assess every open issue; print the plan; change nothing
+foundry plan --apply    # write exactly that plan to GitHub
+foundry run <plan>      # build it
+```
+
+`foundry plan` reads the repo's open issues and its code. It folds duplicates into the oldest
+(appending their full text, never rewriting it), works out what depends on what and which files each
+issue touches, and skips anything it can't build without inventing a decision, saying what's missing.
+Nothing changes on GitHub until you've read the printout, rounds and removed links included, and run
+`--apply`.
+
 ## When it merges, and when it doesn't
 
 A clean **done** run merges its own PR with `--merge`, so each ticket's commit survives in history.
@@ -164,6 +179,7 @@ by hand, re-label it, and run again: the run resumes with the same tickets and t
 | [`orchestrator/src/frontier.ts`](orchestrator/src/frontier.ts) | the whole scheduler: what is buildable, and what can share a round |
 | [`orchestrator/src/review.ts`](orchestrator/src/review.ts) | the reviewer that can only say no |
 | [`orchestrator/src/tickets.ts`](orchestrator/src/tickets.ts) | spec to tickets: one agent call, then publishing in code |
+| [`orchestrator/src/plan.ts`](orchestrator/src/plan.ts) | `foundry plan`: existing issues to a checked, printed, then applied plan |
 | [`orchestrator/src/ship.ts`](orchestrator/src/ship.ts) | the PR and the merge decision |
 | [`orchestrator/src/dashboard.ts`](orchestrator/src/dashboard.ts) | `foundry dashboard`, the live view above |
 | [`docs/field-guide.html`](docs/field-guide.html) | the operator's guide |

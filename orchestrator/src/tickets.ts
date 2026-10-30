@@ -159,18 +159,19 @@ export async function writeTickets(spec: number, repoDir: string): Promise<numbe
     numbers.push(n);
     await gh.addSubIssue(repo, spec, n, repoDir);
   }
-  const shouldBeBlocked: number[] = [];
+  const expected = new Map<number, number>();
   for (const [i, t] of draft.tickets.entries()) {
-    for (const b of t.blockedBy) {
-      const blocked = numbers[i];
+    const blocked = numbers[i];
+    if (blocked === undefined) continue;
+    const blockers = [...new Set(t.blockedBy)];
+    for (const b of blockers) {
       const blocker = numbers[b - 1];
-      if (blocked === undefined || blocker === undefined) continue;
-      await gh.addBlockedBy(repo, blocked, blocker, repoDir);
-      if (!shouldBeBlocked.includes(blocked)) shouldBeBlocked.push(blocked);
+      if (blocker !== undefined) await gh.addBlockedBy(repo, blocked, blocker, repoDir);
     }
+    if (blockers.length > 0) expected.set(blocked, blockers.length);
   }
 
-  await waitForEdges(repo, shouldBeBlocked, repoDir);
+  await waitForEdges(repo, expected, repoDir);
   // Last, so its presence means every ticket and every edge is up. See PUBLISHED_MARKER.
   await gh.comment(
     spec,
@@ -191,21 +192,23 @@ export async function writeTickets(spec: number, repoDir: string): Promise<numbe
  *
  * Failing loudly is the right end state: building in the wrong order corrupts the run in a way
  * nothing downstream would notice.
+ *
+ * `expected` is each issue's exact count of open blockers, not just "more than zero", so the same
+ * wait covers a link `foundry plan` removed: a removal lags exactly as an addition does.
  */
-async function waitForEdges(repo: string, blocked: number[], repoDir: string): Promise<void> {
-  if (blocked.length === 0) return;
+export async function waitForEdges(repo: string, expected: Map<number, number>, repoDir: string): Promise<void> {
+  if (expected.size === 0) return;
 
   const deadline = Date.now() + 60_000;
   for (;;) {
     const lagging: number[] = [];
-    for (const n of blocked) {
-      const summary = await gh.blockedBy(repo, n, repoDir);
-      if (summary === 0) lagging.push(n);
+    for (const [n, count] of expected) {
+      if ((await gh.blockedBy(repo, n, repoDir)) !== count) lagging.push(n);
     }
     if (lagging.length === 0) return;
     if (Date.now() > deadline) {
       throw new Error(
-        `GitHub still reports no blockers for #${lagging.join(", #")} 60s after the edges were ` +
+        `GitHub still reports the wrong number of blockers for #${lagging.join(", #")} 60s after the edges were ` +
           `recorded. Refusing to start the build loop: a blocked ticket that looks ready would be ` +
           `built before the work it depends on exists.`,
       );

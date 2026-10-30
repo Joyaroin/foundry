@@ -153,10 +153,41 @@ a review with the input it was designed for has only run in the scratch repo.
 Do not remove the `waitForEdges` call in `tickets.ts`. It looks like defensive padding; it is not.
 Without it the loop can build a ticket before its blocker exists, and nothing downstream notices.
 
+## `foundry plan`: the unattended half, from issues that already exist
+
+Added 2026-10-29. A model reads every open issue and the code and proposes merges, a full dependency
+graph, files per issue, and the spec content a plan issue carries; `plan.ts` validates it and prints
+the rounds it implies. Adham's choices, each deliberate:
+
+- **All open issues**, not a labelled subset. Code leaves out by rule what must never be built:
+  parents (read as specs), plans, assigned and `ready-for-human`/`wontfix` issues, and anything
+  blocked by one of those — the model may rewrite links it sees, never one to work it does not.
+- **Duplicates fold into the oldest**: the survivor gets the others' full text appended, verbatim, and
+  they close as duplicates. No model-written merged text, so nothing can be dropped in the merge.
+- **The model may rewrite links, not only add them.** More parallelism, at the cost that a wrong
+  removal lets a ticket build early. Every removal is printed as `link  −` so the gate shows it.
+- **The plan names its issues; it does not adopt them.** GitHub allows one parent per issue and most
+  already have a spec, so the plan issue lists numbers in a `<!-- foundry:plan -->` block and
+  `gh.tickets()` reads that instead of sub-issues. Builders get the plan *and* the ticket's own parent.
+
+Proven 2026-10-29 on `harness-fixture`, against six issues filed to look like a messy backlog. The
+dry run folded #18 into #17 (same padding helper, worded differently), added the missing #20 → #19
+link (`mean` needs `sum`), removed a deliberately wrong #21 → #19 link and replaced it with #21 → #17,
+skipped the vague "make the helpers faster" with the question a person must answer, and left the
+spec #3 out by rule. `--apply` wrote exactly that; `foundry run 23 --no-merge` built all four in two
+rounds, every review approved (#17's judged 6 criteria, its own 3 and #18's 3), 30 tests, PR #24, CI
+green, exit 0. No reviewer narrated hunting for its input this time.
+
+`--apply` executes the saved file, never a second model call, and refuses if any assessed issue
+changed since the printout. Do not make `--apply` re-plan: the plan that was read must be the plan
+that happens.
+
 ## Rules for the unattended half
 
-- **The spec approval is the only gate.** Adding a second place that asks Adham a question defeats
-  the design. If a phase needs an answer, the spec should have carried it.
+- **One gate per run.** For `/foundry` it is the spec approval; for issues a repo already has, it
+  is reading `foundry plan`'s printout before `--apply`. Adding a second place that asks Adham a
+  question defeats the design. If a phase needs an answer, the spec or the plan should have carried
+  it.
 - **Merge only a clean run.** Adham asked for self-merge on 2026-08-27, overruling the original
   no-merge rule. It fires only on `done` + green suite + green CI + no `--no-merge`. A deadlocked
   or stalled run leaves its PR open — those contain failed tickets by definition.

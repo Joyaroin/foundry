@@ -7,7 +7,8 @@ import { buildLoop } from "./build.js";
 import { cleanup } from "./cleanup.js";
 import { dashboard } from "./dashboard.js";
 import { open } from "./frontier.js";
-import { PLUGIN_PATH, WORKTREE_DIR } from "./config.js";
+import { planCommand } from "./plan.js";
+import { MAX_PARALLEL, PLUGIN_PATH, WORKTREE_DIR } from "./config.js";
 import * as git from "./git.js";
 import * as gh from "./gh.js";
 import { ship } from "./ship.js";
@@ -17,6 +18,7 @@ import type { SpokeConfig } from "./types.js";
 
 /**
  * foundry run     <spec-issue> [--no-merge] [--budget-usd N]
+ * foundry plan    [--apply] [--budget-usd N]
  * foundry release <spec-issue>
  * foundry cleanup [--all] [--apply]
  *
@@ -56,6 +58,7 @@ const die = (msg: string): never => {
 
 function usage(): never {
   console.error("usage: foundry run       <spec-issue> [--no-merge] [--budget-usd N]");
+  console.error("       foundry plan      [--apply] [--budget-usd N]");
   console.error("       foundry release   <spec-issue>");
   console.error("       foundry cleanup   [--all] [--apply]");
   console.error("       foundry dashboard [log-file] [--port N]");
@@ -143,7 +146,7 @@ async function preflight(repoDir: string): Promise<void> {
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const command = argv[0];
-  if (command !== "run" && command !== "release" && command !== "cleanup" && command !== "dashboard") {
+  if (command !== "run" && command !== "plan" && command !== "release" && command !== "cleanup" && command !== "dashboard") {
     usage();
   }
 
@@ -161,6 +164,23 @@ async function main(): Promise<void> {
     await cleanup(await git.repoRoot(process.cwd()), {
       all: argv.includes("--all"),
       apply: argv.includes("--apply"),
+      log,
+    });
+    return;
+  }
+
+  if (command === "plan") {
+    const budgetAt = argv.indexOf("--budget-usd");
+    const budget = budgetAt >= 0 ? Number(argv[budgetAt + 1]) : undefined;
+    if (budgetAt >= 0 && !Number.isFinite(budget)) usage();
+    const repoDir = await git.repoRoot(process.cwd());
+    const apply = argv.includes("--apply");
+    if (!apply && credential().kind === "none") die(credential().detail);
+    const config = await loadConfig(repoDir);
+    await planCommand(repoDir, await gh.repoSlug(repoDir), {
+      apply,
+      cap: Math.max(1, config.maxParallel ?? MAX_PARALLEL),
+      ...(budget !== undefined ? { budgetUsd: budget } : {}),
       log,
     });
     return;

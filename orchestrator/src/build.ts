@@ -200,6 +200,7 @@ function builderPrompt(
 async function build(
   t: Ticket,
   spec: number,
+  repo: string,
   repoDir: string,
   integration: string,
   config: SpokeConfig,
@@ -235,7 +236,13 @@ async function build(
       }
     }
     log(`  #${t.number} builder started on ${branch}`);
-    const [ticketText, specText] = await Promise.all([gh.issueText(t.number, repoDir), gh.issueText(spec, repoDir)]);
+    const ticketText = await gh.issueText(t.number, repoDir);
+    // A ticket from `foundry plan` keeps the spec it already had: the plan settles what its tickets
+    // share, the ticket's own parent still says what it is for. Both go to the builder and reviewer.
+    const parent = await gh.parentOf(repo, t.number, repoDir);
+    const specText =
+      (await gh.issueText(spec, repoDir)) +
+      (parent !== null && parent !== spec ? `\n\n===== THE TICKET'S OWN SPEC =====\n${await gh.issueText(parent, repoDir)}` : "");
     const run = await agent(builderPrompt(t, ticketText, specText, integration, branch), {
       cwd: worktree,
       model: BUILDER_MODEL,
@@ -274,8 +281,8 @@ async function build(
     // builder's own resources still exist for it to run tests against.
     log(`  #${t.number} review started`);
     const verdict = await review({
-      ticket: t.number,
-      spec,
+      ticketText,
+      specText,
       branch,
       integration,
       worktree,
@@ -406,7 +413,7 @@ export async function buildLoop(opts: {
 
     // Builders run concurrently; landing is serialized below.
     const reports = await Promise.all(
-      batch.map((t) => build(t, spec, repoDir, integration, config, opts.budgetUsd, log)),
+      batch.map((t) => build(t, spec, repo, repoDir, integration, config, opts.budgetUsd, log)),
     );
 
     let closedThisRound = 0;

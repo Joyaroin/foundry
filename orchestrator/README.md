@@ -23,6 +23,7 @@ only say no; everything else is a function call.
 | Decision | Who makes it |
 |---|---|
 | What the tickets are, and their dependency edges | **model** (`tickets.ts`, schema-enforced) |
+| For existing issues: which are duplicates, which can be built, their links and files | **model** proposes (`plan.ts`, schema-enforced); code validates, refuses a cycle, prints it, and applies only the printed plan |
 | The code inside one ticket | **model** (`build.ts`, one builder per worktree) |
 | Whether a built ticket is good enough | **model can only reject** (`review.ts`); code rejects on any unmet criterion, any blocking finding, a missing verdict, or a moved branch |
 | Which tickets are eligible right now | code — `frontier.ts` |
@@ -46,6 +47,7 @@ agent is explicitly forbidden from touching the tracker: it writes JSON, the pro
 | `build.ts` | the round loop, the concurrency cap, landing work, the stop conditions |
 | `ship.ts` | the pull request and the four-condition merge decision |
 | `tickets.ts` | spec to tickets: one agent call, then deterministic publishing |
+| `plan.ts` | `foundry plan`: existing issues to a validated, printed, then applied plan |
 | `review.ts` | the veto: a second model checks each built ticket against its criteria |
 | `frontier.ts` | which tickets are buildable, and which can share a round — the entire scheduler |
 | `gh.ts` | every GitHub mutation the run performs |
@@ -169,6 +171,33 @@ The setting is now `['project']`. Probed 2026-09-02 against SDK 0.3.250, with a 
 a scratch repo: `[]` saw nothing, `['project']` saw the repo's `CLAUDE.md` and not `~/.claude/CLAUDE.md`,
 and `['user','project']` saw both — so the middle result is a real exclusion, not a blind probe.
 Discovery also works from a worktree nested under `.claude/worktrees/`.
+
+## Planning from issues a repo already has
+
+```bash
+foundry plan            # read every open issue and the code; print the plan; change nothing
+foundry plan --apply    # write exactly that plan to GitHub
+foundry run <plan>      # build it
+```
+
+A model proposes; `plan.ts` decides whether the proposal is usable and what it means:
+
+- **Every assessed issue is accounted for once**, as build or skip. A skip carries the question a
+  person must answer first, rather than a guess.
+- **Duplicates fold into the oldest.** The survivor gets each duplicate's full text appended
+  verbatim, and the duplicate is closed as a duplicate of it — reopen it to undo.
+- **The graph is the model's, checked by code.** It may add and remove links between the issues it
+  assessed. A link to an issue being merged away now points at the survivor; an issue depending on
+  one not being built is not built either; a cycle refuses the whole plan.
+- **Some issues are never shown to the model**: parents (read as specs instead), earlier plans,
+  assigned issues, `ready-for-human` and `wontfix`, and anything blocked by one of those.
+
+The dry run saves the plan to `.claude/foundry-plan.json`. `--apply` reads that file, refuses if any
+issue changed since, and then: folds duplicates, writes each issue's files and label, rewrites links
+(waiting until GitHub reports the new counts), and opens a `Plan:` issue listing the issues in a
+`<!-- foundry:plan -->` block. A plan cannot make the issues its sub-issues — GitHub allows one
+parent, and most already have a spec — so `foundry run` reads that list instead, and each builder
+gets both the plan and the ticket's own spec.
 
 ## Tickets that edit the same files wait for each other
 
