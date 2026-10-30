@@ -130,7 +130,7 @@ tests passing, every exported name exactly as the spec's Shared Interfaces wrote
 - **Overlap scheduling**: round 1 had 3 ready tickets and a cap of 2. It built `clamp` (`src/num.js`)
   beside `initials` (`src/text.js`) and held `reverseWords`, which shares `src/text.js` with
   `initials`. Round 2 built `percent` (unblocked by `clamp`) beside `reverseWords`.
-- **Review**: all 4 approved, 10-12 criteria each. Each review took 2-4 minutes, longer than the
+- **Review**: all 4 approved, 10-12 criteria each — but read the caveat below. Each review took 2-4 minutes, longer than the
   builder it checked, and its notes found real test gaps (an untested lower bound in `percent`)
   that it rightly did not block on.
 - **Resume**: running again said "already has its tickets — resuming" and wrote none. It also
@@ -140,6 +140,15 @@ tests passing, every exported name exactly as the spec's Shared Interfaces wrote
   PR #16 with `--merge`, so all four ticket commits are on `main`. Spec #11 closed as completed
   through `Closes #11`, `foundry/spec-11` was deleted locally and on the remote, the checkout was
   left on an up-to-date `main`, and CI on `main` passed after the merge.
+
+**Caveat, found the same day from the run's own narration:** every prompt said "read the ticket
+with `gh issue view N --comments`", and piped, that prints the comments only — no title, no body.
+Reviewers in that run got no ticket text in their prompt and found it themselves (one by reading old
+session transcripts off the disk); builders and the ticket writer have been working around the same
+empty command since August. The program now fetches title, body and comments as JSON and puts them
+in every prompt (`gh.issueText`). Do not go back to telling a model which command to run for input
+the run depends on. The approvals above were real, but reached by the reviewer's own detective work;
+a review with the input it was designed for has only run in the scratch repo.
 
 Do not remove the `waitForEdges` call in `tickets.ts`. It looks like defensive padding; it is not.
 Without it the loop can build a ticket before its blocker exists, and nothing downstream notices.

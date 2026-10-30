@@ -102,10 +102,10 @@ function isDraft(v: unknown): v is Draft {
 }
 
 export async function writeTickets(spec: number, repoDir: string): Promise<number[]> {
+  const specText = await gh.issueText(spec, repoDir);
   const prompt = [
     `Use the /foundry:to-tickets skill to break spec issue #${spec} of this repository into tickets.`,
-    ``,
-    `Read the spec with: gh issue view ${spec} --comments`,
+    `The spec is at the end of this message, in full.`,
     ``,
     `Do NOT create any GitHub issues, and do not run \`gh issue create\`, \`gh issue edit\` or`,
     `\`gh api\`. Publishing is the orchestrator's job, not yours — it records the dependency edges,`,
@@ -123,6 +123,9 @@ export async function writeTickets(spec: number, repoDir: string): Promise<numbe
     ``,
     `If the spec does not settle a decision some ticket needs, do not invent it: set specDefect to`,
     `the missing decision and return no tickets.`,
+    ``,
+    `===== SPEC =====`,
+    specText,
   ].join("\n");
 
   const run = await agent(prompt, { cwd: repoDir, maxTurns: 60, schema: DRAFT_SCHEMA });

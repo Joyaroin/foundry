@@ -128,9 +128,29 @@ export async function tickets(repo: string, spec: number, cwd: string): Promise<
   return out;
 }
 
-/** An issue's title, body and comments as plain text — what a reviewer is given to judge against. */
+type IssueJson = { number: number; title: string; body: string; comments: { author: { login: string } | null; body: string }[] };
+
+/**
+ * An issue's title, body and comments, as one block of text for a prompt.
+ *
+ * Fetched by the program and put in the prompt, never left to a model to look up. Every prompt once
+ * said "read it with `gh issue view N --comments`", and piped — which is how an agent's shell runs
+ * it — that prints the comments ONLY: no title, no body. Builders, the ticket writer and reviewers
+ * were all handed a command that returns nothing useful, and worked around it, one of them by
+ * reading old session transcripts off the disk.
+ */
 export async function issueText(n: number, cwd: string): Promise<string> {
-  return run("gh", ["issue", "view", String(n), "--comments"], cwd);
+  const json = await run("gh", ["issue", "view", String(n), "--json", "number,title,body,comments"], cwd);
+  return formatIssue(JSON.parse(json) as IssueJson);
+}
+
+export function formatIssue(i: IssueJson): string {
+  return [
+    `#${i.number} ${i.title}`,
+    ``,
+    i.body.trim(),
+    ...i.comments.map((c) => `\n--- comment by ${c.author?.login ?? "unknown"} ---\n${c.body.trim()}`),
+  ].join("\n");
 }
 
 export async function comment(n: number, body: string, cwd: string): Promise<void> {

@@ -158,13 +158,18 @@ function slug(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
 }
 
-function builderPrompt(t: Ticket, spec: number, integration: string, branch: string): string {
+function builderPrompt(
+  t: Ticket,
+  ticketText: string,
+  specText: string,
+  integration: string,
+  branch: string,
+): string {
   return [
     `You are the foundry builder. Build exactly one ticket: #${t.number} — ${t.title}`,
     ``,
     `Follow the /foundry:implement skill, which works test-first through the /foundry:tdd skill.`,
-    `Read the ticket with: gh issue view ${t.number} --comments`,
-    `Read the spec with:   gh issue view ${spec} --comments`,
+    `The ticket and its spec are at the end of this message, in full.`,
     `The spec's Shared Interfaces and Testing Decisions name your seams, exported symbols and signatures.`,
     `Use those names exactly: other builders are writing against the same names right now.`,
     ``,
@@ -182,6 +187,12 @@ function builderPrompt(t: Ticket, spec: number, integration: string, branch: str
     `Report "failure" honestly. A ticket handed back with a clear error costs one ticket.`,
     `A ticket reported green that is not green costs the whole round: it merges, the post-merge`,
     `gates fail, and the orchestrator reverts work that had nothing wrong with it.`,
+    ``,
+    `===== TICKET =====`,
+    ticketText,
+    ``,
+    `===== SPEC =====`,
+    specText,
   ].join("\n");
 }
 
@@ -224,7 +235,8 @@ async function build(
       }
     }
     log(`  #${t.number} builder started on ${branch}`);
-    const run = await agent(builderPrompt(t, spec, integration, branch), {
+    const [ticketText, specText] = await Promise.all([gh.issueText(t.number, repoDir), gh.issueText(spec, repoDir)]);
+    const run = await agent(builderPrompt(t, ticketText, specText, integration, branch), {
       cwd: worktree,
       model: BUILDER_MODEL,
       maxTurns: 300,
