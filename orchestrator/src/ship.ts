@@ -36,7 +36,7 @@ export function refusal(loop: Pick<RunResult, "stop" | "handedBack">, noMerge: b
   // 1. A clean run only.
   if (loop.stop !== "done") return `run stopped on ${loop.stop}, not done`;
   if (loop.handedBack.length > 0) return `${loop.handedBack.length} ticket(s) were handed back`;
-  // 2. Adham's opt-out.
+  // 2. The operator's opt-out.
   if (noMerge) return "--no-merge";
   return undefined;
 }

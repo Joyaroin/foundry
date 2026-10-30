@@ -41,9 +41,9 @@ Give each ticket its **blocking edges** — the other tickets that must complete
 
 ### 4. State the breakdown
 
-Foundry runs this step **unattended** — Adham chose to have tickets written for him, and the spec
-he already approved is the approval. Do not present the breakdown for review and do not iterate
-with him.
+Foundry runs this step **unattended** — the user chose to have tickets written for them, and the
+spec they already approved is the approval. Do not present the breakdown for review and do not
+iterate with them.
 
 Say once, as a status line, what you are about to publish:
 
@@ -52,7 +52,7 @@ Say once, as a status line, what you are about to publish:
 - how deep the longest blocking chain runs
 
 Then publish. If the breakdown genuinely cannot be drawn from the spec — the spec is silent on
-something a ticket needs — that is a defect in the spec, not a question for him. Inside a foundry
+something a ticket needs — that is a defect in the spec, not a question for the user. Inside a foundry
 run, put the missing decision in `specDefect` and return no tickets; the program stops the run and
 records it on the spec. Never invent the missing decision.
 

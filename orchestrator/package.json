@@ -4,6 +4,15 @@
   "private": true,
   "type": "module",
   "description": "The unattended half of the foundry pipeline: spec -> tickets -> parallel build -> PR -> merge.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Joyaroin/foundry.git",
+    "directory": "orchestrator"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "bin": {
     "foundry": "./src/cli.ts"
   },

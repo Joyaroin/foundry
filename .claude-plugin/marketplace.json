@@ -2,7 +2,7 @@
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "foundry",
   "metadata": {
-    "description": "One idea in, shipped tickets out. Grill -> spec -> tickets -> parallel build, autonomous after the spec."
+    "description": "One idea in, a reviewed and merged pull request out."
   },
   "owner": {
     "name": "Adham Sedik",
@@ -11,7 +11,7 @@
   "plugins": [
     {
       "name": "foundry",
-      "description": "Autonomous feature pipeline. /foundry grills you on an idea, writes the spec, breaks it into dependency-aware tickets, then builds them unattended -- parallel where independent, sequential where blocked -- and stops when the queue is empty.",
+      "description": "Autonomous feature pipeline for Claude Code: grill an idea into a spec, then tickets, parallel test-first builds, an independent review of each ticket, and a merged PR — unattended after the spec.",
       "version": "0.3.0",
       "author": { "name": "Adham Sedik" },
       "source": "./plugin",

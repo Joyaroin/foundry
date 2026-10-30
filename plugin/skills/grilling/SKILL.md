@@ -7,7 +7,7 @@ Interview the user relentlessly until you reach a shared understanding. Map this
 
 Work the tree in **rounds**. The **frontier** is every decision whose prerequisites are already settled — the questions you can ask _now_ without guessing at answers you haven't heard yet. Ask the whole frontier in one round, then wait for the user's answers before the next round.
 
-**Ask with the `AskUserQuestion` tool, never as prose.** Adham asked for this directly (2026-08-16): a prose round makes him retype an answer he could have clicked. One question per tool entry, each carrying its real options. The tool caps a call at four questions — when the frontier is wider, issue back-to-back calls in the same round rather than dropping questions or pushing them into a later round.
+**Ask with the `AskUserQuestion` tool, never as prose.** A prose round makes the user retype an answer they could have clicked. One question per tool entry, each carrying its real options. The tool caps a call at four questions — when the frontier is wider, issue back-to-back calls in the same round rather than dropping questions or pushing them into a later round.
 
 Put your recommendation **first in the options list**, with `(Recommended)` on its label. Options are the choices themselves, never "yes"/"no" — spell out what each one actually does. Findings, evidence and `file:line` references go in the prose _before_ the tool call, so the question body stays short enough to read inside a picker.
 

@@ -16,15 +16,15 @@ One idea in, merged tickets out. Five phases, one gate.
                           the only gate
 ```
 
-**Phases 0–2 are a conversation with Adham.** He answers, he corrects, he approves the spec.
-**Phase 3 onward runs without him.** Tickets are written, built, and — on a clean run — merged, with
+**Phases 0–2 are a conversation with the user.** They answer, they correct, they approve the spec.
+**Phase 3 onward runs without them.** Tickets are written, built, and — on a clean run — merged, with
 no further approval. The run ends by itself when no ticket can be built, never because it ran out
 of things to guess at.
 
 Read that boundary literally. After the spec approval, do not ask questions, do not present
 breakdowns for review, do not pause between tickets. If you find yourself wanting to ask, the
 answer belongs in the spec — which means Phase 2 finished too early, and that is a bug in the
-run, not a reason to interrupt him.
+run, not a reason to interrupt them.
 
 ## 0. Preflight
 
@@ -54,34 +54,34 @@ then stop — do not offer to continue past any of them.
    `claude setup-token`) and `ANTHROPIC_API_KEY` also work. The program prints which one it found
    and refuses only when there is none.
 
-Not a precondition, but note it here: if he passed **`--no-merge`**, the run stops at an open PR
+Not a precondition, but note it here: if they passed **`--no-merge`**, the run stops at an open PR
 instead of merging. It changes nothing until the program's final phase, but the Phase 2 gate has to
-say which way this run is going — the thing he approves must be the thing that happens.
+say which way this run is going — the thing they approve must be the thing that happens.
 
 ## 1. Grill (attended)
 
-Invoke the bundled `grilling` skill on the idea Adham passed as the argument.
+Invoke the bundled `grilling` skill on the idea the user passed as the argument.
 
-This phase is his. Do not shorten it, do not infer answers to skip a round, and do not move on
+This phase is theirs. Do not shorten it, do not infer answers to skip a round, and do not move on
 because the design "seems clear enough". Everything Phase 3 onward does unattended is built out of
 what this phase settles — an unasked question becomes an invented requirement four tickets deep.
 
-Grilling is done when the frontier is empty and Adham confirms shared understanding.
+Grilling is done when the frontier is empty and the user confirms shared understanding.
 
 ## 2. Spec (attended — the gate)
 
 Invoke the bundled `to-spec` skill. It synthesises the conversation; it does not re-interview.
 
-Publish the spec as a GitHub issue labelled `ready-for-agent`. Then show Adham the issue number
-and ask him plainly to approve it, in these words or close to them:
+Publish the spec as a GitHub issue labelled `ready-for-agent`. Then show the user the issue number
+and ask them plainly to approve it, in these words or close to them:
 
 > Spec is #N. Approving it starts the unattended half: I write the tickets, build them all, and
 > merge the PR if the whole queue lands green — without checking back. Approve?
 
-**This is the last thing you ask him.** Once he approves, everything below runs to completion or
+**This is the last thing you ask them.** Once they approve, everything below runs to completion or
 to a reported failure.
 
-If he does not approve, take his corrections and revise the spec. Do not proceed on a maybe.
+If they do not approve, take their corrections and revise the spec. Do not proceed on a maybe.
 
 ## 3-5. Hand off to the program
 
@@ -90,11 +90,11 @@ instructions you follow. Run it from the repo root:
 
 ```bash
 cd <the spoke repo>
-npx tsx /Users/adhamsedik/foundry/orchestrator/src/cli.ts run <spec> [--no-merge] [--budget-usd N]
+foundry run <spec> [--no-merge] [--budget-usd N]
 ```
 
 It does the rest: writes the tickets, drains the frontier in parallel, opens the PR, and merges it
-if the run came out clean. Stream its output to Adham as it goes; do not re-implement any of it by
+if the run came out clean. Stream its output to the user as it goes; do not re-implement any of it by
 hand, and do not "help" by creating issues, merging branches or closing tickets yourself. Every one
 of those is a decision the program makes deterministically, and a second actor doing them corrupts
 the run.
@@ -108,12 +108,12 @@ just no longer decides what happens to them. That determinism is the point of th
 **If it exits non-zero**, the run did not finish cleanly. Report its output verbatim — the stop
 condition, the handed-back tickets and the reason each one failed. Do not re-run it to "try again":
 a failed ticket is deliberately never retried, so a second run rebuilds nothing and only re-opens
-the same deadlock. Running again is how a run *resumes* once Adham has fixed a handed-back ticket
+the same deadlock. Running again is how a run *resumes* once the user has fixed a handed-back ticket
 and re-labelled it `ready-for-agent`: the program sees the tickets already exist, reuses them and
 the open PR, and writes none.
 
 If it stopped because the spec is missing a decision, it says which one and has commented it on the
-spec. That is Phase 2 finishing too early: revise the spec with him, then run again.
+spec. That is Phase 2 finishing too early: revise the spec with them, then run again.
 
 ## What the program needs
 

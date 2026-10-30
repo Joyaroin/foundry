@@ -1,130 +1,198 @@
 # foundry
 
-One idea in, a reviewable pull request out.
+**One idea in, a reviewed and merged pull request out.**
 
-`/foundry` grills you on an idea, writes the spec, breaks it into dependency-aware tickets, builds
-them all without you — parallel where they are independent, sequential where they block each other
-or edit the same files — has a second model review each one, and merges the result if the whole
-queue lands green.
+[![ci](https://github.com/Joyaroin/foundry/actions/workflows/ci.yml/badge.svg)](https://github.com/Joyaroin/foundry/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6.svg)
+![Claude Agent SDK](https://img.shields.io/badge/Claude-Agent%20SDK-d97757.svg)
+
+`/foundry` grills you on an idea until the design is settled, and writes the spec. From there it
+runs on its own: it breaks the spec into dependency-aware tickets and builds them test-first, in
+parallel where they are independent. A second model reviews each ticket before it lands. If the
+whole queue comes out green, foundry merges the PR itself.
+
+The interesting part is the split. The conversation is a [Claude Code](https://claude.com/claude-code)
+skill, because grilling needs a human. The rest is a TypeScript program on the
+[Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk). The model writes the tickets and the
+code, and everything that decides what *happens* to them is ordinary code: scheduling, concurrency,
+stop conditions, what counts as green, the merge. A model can't skip an `if` statement.
+
+![foundry dashboard replaying a real run](docs/dashboard.png)
+
+<sub>A real run, replayed in `foundry dashboard`: spec #11 on
+<a href="https://github.com/Joyaroin/harness-fixture">harness-fixture</a>. 4 tickets in 2 rounds,
+each one reviewed before it landed, in 11 minutes end to end.</sub>
+
+## Proven on real runs
+
+| Date | Spec | What happened | Result |
+|---|---|---|---|
+| 2026-08-31 | text helpers | 3 tickets: 2 built in parallel, 1 held behind its blocker until round 2 | [PR #8](https://github.com/Joyaroin/harness-fixture/pull/8) opened, CI green, 11 tests |
+| 2026-10-29 | number helpers | 4 tickets: one held back a round for sharing a file, all 4 reviewed and approved, both CHANGELOG collisions resolved | [PR #16](https://github.com/Joyaroin/harness-fixture/pull/16) **merged by foundry**, CI green on `main`, 18 tests |
+
+Both runs were against a fixture repo with real CI, which requires a CHANGELOG and bans
+`console.log`. Nothing has run yet against a project with heavy dependencies or a database. See
+[Status](#status).
+
+## How it works
 
 ```
-  ATTENDED  ──────────────────────────┐   UNATTENDED ─────────────────────────
+  ATTENDED  ──────────────────────────┐   UNATTENDED ──────────────────────────────────
   0 preflight → 1 grill → 2 spec ─────┤── 3 tickets → 4 build loop → 5 PR → merge → stop
-                              ▲       │
-                          the only gate
+                              ▲       │                    │
+                          the only gate          build → review → merge → gates
 ```
 
-You are in the loop for the grilling and the spec. After you approve the spec, nothing asks you
-anything until it is finished.
+1. **Grill.** Questions come in rounds, and each round asks only what can be answered now, without
+   guessing at answers still to come.
+2. **Spec.** Published as a GitHub issue. It includes a *Shared Interfaces* section with the exact
+   names and signatures more than one ticket will touch, so parallel builders can't each invent their
+   own. Approving the spec is the last thing foundry ever asks you.
+3. **Tickets.** One model call returns a schema-validated breakdown. Code checks it and publishes it
+   as sub-issues with native GitHub dependency edges.
+4. **Build loop.** Each round builds the tickets with no open blockers. Each gets its own git worktree
+   and runs in parallel up to a cap, and two tickets that declared the same files never share a
+   round. A finished ticket is reviewed, merged into the run's branch, and checked with the repo's
+   own test commands.
+5. **Ship.** It opens the PR, and merges it only if all four merge conditions below hold.
 
-**The two halves are built differently, on purpose.** Phases 0-2 are a conversation, so they are a
-Claude Code skill. Phases 3-5 must be deterministic, so they are a TypeScript program on the
-[Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk) — the loop, the concurrency cap, the
-stop conditions and the merge decision are `if` statements a model cannot skip. See
-[`orchestrator/README.md`](orchestrator/README.md) for which decision lives where.
+### The model decides content; code decides everything else
 
-## Hub and spoke
+| Decision | Who makes it |
+|---|---|
+| What the tickets are, and their dependency edges | model, schema-enforced |
+| The code inside one ticket | model, one builder per worktree |
+| Whether a built ticket is good enough | model can **only reject**; code rejects on any unmet criterion, a blocking finding, or a missing verdict |
+| Which tickets run, and which run together | code (`frontier.ts`) |
+| Whether work is green | code: the repo's declared test commands, by exit code |
+| When the loop stops, and whether the PR merges | code: three stop conditions, four merge conditions |
 
-This repo is the **hub**. It ships the orchestrator and the six skills it drives, as a Claude Code
-plugin. It is entirely self-contained — it does not read anything from
-`~/.claude` and nothing here needs to stay in sync with your global setup.
+The full table, with the file behind each row, is in [`orchestrator/README.md`](orchestrator/README.md).
 
-Your project repos are the **spokes**. `/foundry` runs *inside* a spoke, and every issue, branch
-and PR it creates belongs to that spoke. The hub holds no per-project state.
+## What running it taught it
 
-```
-              ┌─────────────┐
-              │   foundry   │  hub: skills + the orchestrator program
-              └──────┬──────┘
-        ┌────────────┼────────────┐
-   ┌────▼───┐   ┌────▼───┐   ┌────▼────┐
-   │tvtracker│   │MediaSafe│   │ any repo │   spokes: issues, branches, PRs
-   └─────────┘   └─────────┘   └──────────┘
-```
+None of these showed up in type checks or code review. Each was found by running the pipeline, and
+each is now handled in code, with the reasoning written next to it:
 
-## Install
+- **GitHub's issue-dependency summary is eventually consistent.** A freshly written edge read back as
+  0, 0, then 1, so a blocked ticket could look ready and get built before its blocker existed.
+  Ticket writing now waits until every edge it wrote is visible, and fails loudly after 60s.
+- **Parallel builders collide.** Every builder in a round starts from the same commit, so a file they
+  all must create (a CHANGELOG) conflicts on the second merge. Foundry resolves those, then checks
+  the result the same way as a clean merge. Tickets that edit the same source files are now kept out
+  of the same round altogether.
+- **"No CI checks" right after a push means "not yet".** CI registers checks a few seconds later, so
+  reading the status once would merge before CI had started. "None" is believed only after holding
+  for a minute.
+- **A plain-looking command handed agents nothing.** Piped, `gh issue view N --comments` prints the
+  comments without the issue itself. Builders and reviewers had been working around an empty
+  command, one by reading old session logs off the disk. The program now fetches each issue and
+  puts it in the prompt.
+- **Isolating the SDK from the machine also hid the repo's own `CLAUDE.md`** from every builder.
+  Probed with a planted marker, then fixed.
+- **Cleanup once deleted a whole directory of worktrees.** One project keeps 28 hand-made worktrees
+  there, two of them locked. Foundry now removes only the ones it created. `foundry cleanup` sorts
+  the rest before touching anything, and never removes a worktree with uncommitted or locked work.
+
+## Quick start
+
+You need Node 20+, an authenticated [`gh`](https://cli.github.com), and Claude Code.
 
 ```bash
+git clone https://github.com/Joyaroin/foundry.git
+cd foundry/orchestrator && npm install && npm link   # puts `foundry` on your PATH
+```
+
+```text
 claude
-> /plugin marketplace add /Users/adhamsedik/foundry
+> /plugin marketplace add Joyaroin/foundry
 > /plugin install foundry@foundry
 ```
 
-Then `cd` into any repo and run `/foundry <the thing you want built>`.
-Add `--no-merge` to stop the run at an open PR instead of merging it.
+Then add a `foundry.config.json` to the repo you want to build in, declaring what "green" means:
 
-The orchestrator needs its own install once:
-
-```bash
-cd /Users/adhamsedik/foundry/orchestrator && npm install
+```json
+{ "verify": ["npm run typecheck", "npm test"], "maxParallel": 3 }
 ```
 
-Being logged in to Claude Code is enough — the SDK picks up those OAuth credentials, so a local
-run draws on your subscription rather than API billing. For headless or scheduled runs, use
-`claude setup-token` and export `CLAUDE_CODE_OAUTH_TOKEN`. `ANTHROPIC_API_KEY` also works and
-bills at API rates. Preflight prints which one it found.
+Then run `/foundry <the thing you want built>` from inside that repo. For a repo's first run, add
+`--no-merge` so it stops at an open PR.
 
-## What it needs from a spoke repo
+Being logged in to Claude Code is enough: the SDK uses those credentials, so a local run draws on
+your subscription. `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) and `ANTHROPIC_API_KEY` also
+work. Preflight says which one it found.
 
-Checked in Phase 0, all refuse-to-run:
+### What it needs from the repo it builds in
 
-- you are inside the repo, and the working tree is clean
-- `.claude/` is gitignored (builder worktrees live at `.claude/worktrees/`)
-- `gh` is authenticated (the `ready-for-agent` / `ready-for-human` labels are created if missing)
-- GitHub **issue dependencies** are readable — this is how blocked tickets are told from ready ones
-- **`foundry.config.json`** declares the gate commands: `{"verify":["npm run typecheck","npm test"]}`.
-  This is how the program knows what "green" means; it will not guess.
+All of these are checked before anything runs, and the run refuses if any fails:
 
-## What's inside
+- the working tree is clean, and `.claude/` is gitignored (builder worktrees live there)
+- `gh` is authenticated, and GitHub issue dependencies are readable (they are how blocked tickets
+  are told apart from ready ones); the two labels it uses are created if missing
+- `foundry.config.json` declares the gate commands. The program will not guess what "green" means.
 
-| Path | What it is |
-|---|---|
-| `plugin/skills/foundry/` | the attended half — preflight, grilling, the spec gate, the hand-off |
-| `plugin/skills/foundry/references/tracker.md` | the GitHub issue conventions, and the `gh` commands |
-| `plugin/skills/{grilling,to-spec,to-tickets,implement}/` | the four pipeline stages |
-| `plugin/skills/tdd/` | the testing discipline `implement` works to |
-| `orchestrator/` | the unattended half: the Agent SDK program that runs phases 3-5 |
-| `orchestrator/src/frontier.ts` | which tickets can be built right now, and which together — the whole scheduler |
-| `orchestrator/src/review.ts` | the second model that checks each ticket, and can only say no |
-
-## What happens to each ticket
-
-A builder writes it, test-first, in its own worktree. A second model — not the one that wrote it,
-and never shown its account of the work — then checks it against the ticket's acceptance criteria
-and the spec. That review can only reject: a criterion not met, a blocking defect, or no verdict
-at all hands the ticket back. Only then is it merged into the run's branch and the repo's gates
-run on the result.
-
-Tickets that declare the same files are never built in the same round, so parallel builders do
-not write two versions of one function for a model to reconcile at merge time.
-
-## How the loop terminates
-
-Every round either closes a ticket or trips a check. There are exactly three ways to stop:
-
-- **done** — no open tickets left; opens the PR and merges it if it is green
-- **deadlock** — the only tickets left are blocked by ones a builder failed; opens a PR for what landed and names what is stuck
-- **stall** — two consecutive rounds closed nothing
+A repo whose tests share a database or other external resource can give each builder its own copy.
+See [per-builder isolation](orchestrator/README.md#per-builder-isolation).
 
 ## When it merges, and when it doesn't
 
-A clean **done** run merges its own PR — `--merge`, `--delete-branch`, so the per-ticket commits
-survive. It merges only when all four of these hold:
+A clean **done** run merges its own PR with `--merge`, so each ticket's commit survives in history.
+It merges only when all four of these hold:
 
-1. every ticket closed — reviewed, merged and green — none handed back
-2. typecheck and the full suite green on the integration branch after the last merge
-3. `gh pr checks` green (a repo with no CI passes trivially — there is nothing to be red)
+1. every ticket closed (reviewed, merged and green), and none handed back
+2. the repo's gates are green on the run's branch after the last merge
+3. `gh pr checks` is green (a repo with no CI passes after a minute of seeing none)
 4. you did not pass `--no-merge`
 
-**A deadlock or a stall never merges.** Those states contain failed tickets by definition, and
-merging one would put known-incomplete work on your default branch under a green-looking PR. The
-PR is left open and the report says which condition stopped it.
+A **deadlock** (the only tickets left depend on one that failed) or a **stall** (two rounds closed
+nothing) never merges. The PR stays open, and the report says what stopped it. Foundry never uses
+`--admin`, never forces, and never retries a refused merge. Branch protection is a decision someone
+already made.
 
-It never uses `--admin`, never forces, and never retries a refused merge. If branch protection or a
-required review blocks it, that refusal is reported verbatim and the PR stays open.
+**A failed ticket is not retried.** It is handed back as `ready-for-human`, and the tickets behind it
+stop, loudly. A loop that retries spends its whole budget on the one thing that cannot work. Fix it
+by hand, re-label it, and run again: the run resumes with the same tickets and the same PR.
 
-## Failure is not retried
+## Repository layout
 
-A ticket a builder fails is handed back as `ready-for-human` and stays off the frontier. Anything
-depending on it stops too, and the run reports a deadlock. This is deliberate: a loop that retries
-a failing ticket burns the whole budget on the one thing that cannot work.
+| Path | What it is |
+|---|---|
+| [`plugin/skills/foundry/`](plugin/skills/foundry/SKILL.md) | the attended half: preflight, grilling, the spec gate, the hand-off |
+| [`plugin/skills/`](plugin/skills) `grilling` `to-spec` `to-tickets` `implement` `tdd` | the pipeline stages and the testing discipline builders follow |
+| [`orchestrator/src/build.ts`](orchestrator/src/build.ts) | the round loop, landing work, the stop conditions |
+| [`orchestrator/src/frontier.ts`](orchestrator/src/frontier.ts) | the whole scheduler: what is buildable, and what can share a round |
+| [`orchestrator/src/review.ts`](orchestrator/src/review.ts) | the reviewer that can only say no |
+| [`orchestrator/src/tickets.ts`](orchestrator/src/tickets.ts) | spec to tickets: one agent call, then publishing in code |
+| [`orchestrator/src/ship.ts`](orchestrator/src/ship.ts) | the PR and the merge decision |
+| [`orchestrator/src/dashboard.ts`](orchestrator/src/dashboard.ts) | `foundry dashboard`, the live view above |
+| [`docs/field-guide.html`](docs/field-guide.html) | the operator's guide |
+
+## Development
+
+```bash
+cd orchestrator
+npm run typecheck
+npm test          # the scheduler, the dependency-edge rule, the review verdict, the merge decision
+```
+
+CI runs both on every push. The parts that talk to GitHub, git or a model are tested by running the
+pipeline against [harness-fixture](https://github.com/Joyaroin/harness-fixture), and each such run
+is recorded in [`CLAUDE.md`](CLAUDE.md).
+
+## Status
+
+**v0.3.0.** Proven end to end twice on the fixture, including a self-merge. Not yet exercised:
+
+- a repo with heavy dependencies or a database
+- a merge refused by branch protection
+- the reviewer rejecting a ticket inside a full run (it has rejected in a scratch repo)
+
+Two constraints shape the code. The first is comprehensibility. Foundry's predecessor was a
+1,889-line pipeline that got deleted unused because its own author could not maintain it, so this one
+avoids clever control flow, and avoids abstractions that have only one caller. The second is determinism:
+anything that decides the shape of a run lives in code, not in a prompt.
+
+## License
+
+[MIT](LICENSE)

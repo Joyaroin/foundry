@@ -5,7 +5,7 @@ The unattended half of foundry, as a program. Built on the
 
 ```bash
 cd <a spoke repo>
-npx tsx /Users/adhamsedik/foundry/orchestrator/src/cli.ts run <spec-issue> [--no-merge] [--budget-usd N]
+foundry run <spec-issue> [--no-merge] [--budget-usd N]
 ```
 
 ## Why this exists

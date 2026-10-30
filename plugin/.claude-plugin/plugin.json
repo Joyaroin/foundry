@@ -1,10 +1,11 @@
 {
   "name": "foundry",
-  "description": "Autonomous feature pipeline: grill -> spec -> tickets -> parallel build.",
+  "description": "Autonomous feature pipeline for Claude Code: grill an idea into a spec, then tickets, parallel test-first builds, an independent review of each ticket, and a merged PR — unattended after the spec.",
   "version": "0.3.0",
   "author": {
     "name": "Adham Sedik"
   },
   "repository": "https://github.com/Joyaroin/foundry",
-  "skills": "./skills/"
+  "skills": "./skills/",
+  "license": "MIT"
 }

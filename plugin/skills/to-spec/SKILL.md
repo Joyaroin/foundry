@@ -56,7 +56,7 @@ Do NOT include specific file paths or code snippets here. They may end up being 
 
 Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it within the relevant decision and note briefly that it came from a prototype. Trim to the decision-rich parts — not a working demo, just the important bits.
 
-If the `designer` agent built a prototype for this feature, **link its committed path** (`design/<name>.html`) in the first implementation decision it informs, and fold that agent's "what it decided" list into these decisions — a decision that lives only in the mock gets re-litigated here, and one that lives only here gets re-litigated by the builder. Link the path rather than describing the file: a prose summary of a prototype goes stale silently, and `tvtracker` already carries a dozen source comments citing a `design/prototype.html` that was never committed and no longer exists.
+If a prototype was committed for this feature (a `design/<name>.html` mock, say), **link its path** in the first implementation decision it informs, and fold what it decided into these decisions — a decision that lives only in the mock gets re-litigated here, and one that lives only here gets re-litigated by the builder. Link the path rather than describing the file: a prose summary of a prototype goes stale silently, and source comments citing a prototype that was never committed are worse than none.
 
 ## Shared Interfaces
 

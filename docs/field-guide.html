@@ -436,12 +436,13 @@
       <section id="hub">
         <h2 class="sec"><span class="num">02</span><span>Install the hub</span></h2>
         <p>Once per machine. The hub holds the skills and the orchestrator; your project repos are spokes it operates on and it keeps no per-project state.</p>
-<pre><code><span class="c"># in Claude Code</span>
-/plugin marketplace add /Users/adhamsedik/foundry
-/plugin install foundry@foundry
+<pre><code><span class="c"># the orchestrator, once: puts `foundry` on your PATH</span>
+git clone https://github.com/Joyaroin/foundry.git
+cd foundry/orchestrator && npm install && npm link
 
-<span class="c"># then, once, for the orchestrator</span>
-cd /Users/adhamsedik/foundry/orchestrator && npm install</code></pre>
+<span class="c"># the skills, in Claude Code</span>
+/plugin marketplace add Joyaroin/foundry
+/plugin install foundry@foundry</code></pre>
         <p>Restart Claude Code after installing the plugin, or the skills will not load.</p>
 
         <h3>Credentials</h3>
@@ -486,7 +487,7 @@ claude
         <p>It grills you in rounds, then writes a spec and publishes it as an issue. Then it asks the one question of the whole run — roughly: <em>"Spec is #N. Approving it starts the unattended half: I write the tickets, build them all, and merge the PR if the whole queue lands green. Approve?"</em></p>
 
         <h3>The unattended half</h3>
-<pre><code>npx tsx ~/foundry/orchestrator/src/cli.ts run <span class="k">&lt;spec#&gt;</span> --no-merge --budget-usd 5</code></pre>
+<pre><code>foundry run <span class="k">&lt;spec#&gt;</span> --no-merge --budget-usd 5</code></pre>
 
         <div class="tablewrap bleed">
           <table>
@@ -621,7 +622,7 @@ claude
 
         <h3>An interrupted run</h3>
         <p>A claimed ticket is invisible to the frontier — that is what stops two builders taking the same one. So a run killed mid-round leaves its tickets assigned with no builder behind them, and the next run finds an empty frontier and reports a deadlock that is not real.</p>
-<pre><code>npx tsx ~/foundry/orchestrator/src/cli.ts release <span class="k">&lt;spec#&gt;</span></code></pre>
+<pre><code>foundry release <span class="k">&lt;spec#&gt;</span></code></pre>
         <p>This un-claims every open ticket under the spec. It deliberately leaves labels alone: a ticket a builder genuinely failed is <code>ready-for-human</code> and should stay that way.</p>
 
         <h3>A genuinely failed ticket</h3>
@@ -629,8 +630,8 @@ claude
 
         <h3>Leftover worktrees</h3>
         <p>A finished run cleans up after itself. An interrupted one leaves <code>ticket-&lt;n&gt;</code> directories behind, and those accumulate.</p>
-<pre><code>npx tsx ~/foundry/orchestrator/src/cli.ts cleanup <span class="c"># dry run</span>
-npx tsx ~/foundry/orchestrator/src/cli.ts cleanup --all --apply</code></pre>
+<pre><code>foundry cleanup <span class="c"># dry run</span>
+foundry cleanup --all --apply</code></pre>
         <p>Nothing is removed without <code>--apply</code>. What removal actually costs is what decides the rules: taking away a worktree does <strong>not</strong> delete its branch, so committed work survives and can be checked out again. Only uncommitted changes are gone for good.</p>
 
         <div class="tablewrap bleed">
