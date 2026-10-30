@@ -75,6 +75,24 @@ export async function handBack(n: number, comment: string, cwd: string): Promise
   );
 }
 
+/**
+ * A ticket's declared files, written into its body by the program and read back by it. Visible,
+ * so a human reading the issue sees what the scheduler sees; marked, so nothing a model wrote in
+ * the body can be mistaken for it.
+ */
+const TOUCHES_MARKER = "<!-- foundry:touches -->";
+
+export function touchesBlock(paths: string[]): string {
+  return `${TOUCHES_MARKER}\n**Expected to touch:** ${paths.map((p) => `\`${p}\``).join(", ")}`;
+}
+
+export function parseTouches(body: string | null): string[] {
+  const at = body?.indexOf(TOUCHES_MARKER) ?? -1;
+  if (!body || at < 0) return [];
+  const line = body.slice(at + TOUCHES_MARKER.length).trimStart().split("\n")[0] ?? "";
+  return [...line.matchAll(/`([^`]+)`/g)].map((m) => m[1]!).filter(Boolean);
+}
+
 /** Every ticket under the spec, with the fields the frontier is computed from. */
 export async function tickets(repo: string, spec: number, cwd: string): Promise<Ticket[]> {
   const raw = await api([`repos/${repo}/issues/${spec}/sub_issues`, "--paginate", "--jq", ".[].number"], cwd);
@@ -86,6 +104,7 @@ export async function tickets(repo: string, spec: number, cwd: string): Promise<
     const issue = JSON.parse(json) as {
       number: number;
       title: string;
+      body: string | null;
       state: "open" | "closed";
       assignee: { login: string } | null;
       labels: { name: string }[];
@@ -103,6 +122,7 @@ export async function tickets(repo: string, spec: number, cwd: string): Promise<
       assignee: issue.assignee?.login ?? null,
       labels: issue.labels.map((l) => l.name),
       blockedBy: issue.issue_dependencies_summary.blocked_by,
+      touches: parseTouches(issue.body),
     });
   }
   return out;

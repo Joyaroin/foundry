@@ -52,18 +52,32 @@ A list of implementation decisions that were made. This can include:
 - API contracts
 - Specific interactions
 
-Do NOT include specific file paths or code snippets. They may end up being outdated very quickly.
+Do NOT include specific file paths or code snippets here. They may end up being outdated very quickly. The one place code-shaped detail belongs is **Shared Interfaces**, below.
 
 Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it within the relevant decision and note briefly that it came from a prototype. Trim to the decision-rich parts — not a working demo, just the important bits.
 
 If the `designer` agent built a prototype for this feature, **link its committed path** (`design/<name>.html`) in the first implementation decision it informs, and fold that agent's "what it decided" list into these decisions — a decision that lives only in the mock gets re-litigated here, and one that lives only here gets re-litigated by the builder. Link the path rather than describing the file: a prose summary of a prototype goes stale silently, and `tvtracker` already carries a dozen source comments citing a `design/prototype.html` that was never committed and no longer exists.
+
+## Shared Interfaces
+
+Every name that more than one ticket will touch, settled here so that builders working in parallel
+cannot each invent their own. Exact names, each with a one-line meaning:
+
+- exported functions and modules, with their signatures and where they live
+- types and their shapes
+- routes, table and column names, events, config keys — whatever the feature shares
+
+Write these as code — `normalise(s: string): string` in `src/text.js` — because they are decisions,
+not descriptions, and a builder that reads "a helper that collapses whitespace" will name it
+differently from the builder next to it. This list does not go stale before the tickets are built,
+which is the reason the rest of the spec avoids code. If nothing is shared, say "None".
 
 ## Testing Decisions
 
 A list of testing decisions that were made. Include:
 
 - A description of what makes a good test (only test external behavior, not implementation details)
-- Which modules will be tested
+- The seams, named by the exported symbols under test — use the names from Shared Interfaces
 - Prior art for the tests (i.e. similar types of tests in the codebase)
 
 ## Out of Scope

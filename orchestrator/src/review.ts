@@ -55,7 +55,7 @@ const VERDICT_SCHEMA: Record<string, unknown> = {
   },
 };
 
-type Verdict = {
+export type Verdict = {
   criteria: { criterion: string; met: boolean; evidence: string }[];
   blocking: string[];
   notes: string[];
@@ -82,7 +82,7 @@ function reviewPrompt(ticketText: string, specText: string, integration: string,
     `- a bug: a wrong result, a crash, lost data, a security hole, an error path the ticket covers left unhandled`,
     `- a test that cannot fail: it re-computes its expected value the way the code does, asserts on its own`,
     `  mocks, or never exercises the behaviour its name claims`,
-    `- a seam or exported name that differs from what the spec's Testing Decisions settled`,
+    `- a name, signature or seam that differs from what the spec's Shared Interfaces or Testing Decisions settled`,
     `- a change outside the ticket that alters existing behaviour`,
     ``,
     `Not blocking: style, naming you would have chosen differently, a cleaner approach, and problems`,
@@ -132,7 +132,12 @@ export async function review(opts: {
   if (!isVerdict(run.structured)) {
     return { approved: false, detail: `review did not complete (${run.detail})` };
   }
-  const { criteria, blocking, notes } = run.structured;
+  return decide(run.structured);
+}
+
+/** The verdict, turned into a decision. Only a unanimous, unblocked, non-empty report passes. */
+export function decide(verdict: Verdict): { approved: boolean; detail: string } {
+  const { criteria, blocking, notes } = verdict;
   if (criteria.length === 0) {
     return { approved: false, detail: "the review judged no acceptance criteria" };
   }

@@ -4,7 +4,8 @@ One idea in, a reviewable pull request out.
 
 `/foundry` grills you on an idea, writes the spec, breaks it into dependency-aware tickets, builds
 them all without you — parallel where they are independent, sequential where they block each other
-— and merges the result if the whole queue lands green.
+or edit the same files — has a second model review each one, and merges the result if the whole
+queue lands green.
 
 ```
   ATTENDED  ──────────────────────────┐   UNATTENDED ─────────────────────────
@@ -24,8 +25,8 @@ stop conditions and the merge decision are `if` statements a model cannot skip. 
 
 ## Hub and spoke
 
-This repo is the **hub**. It ships the orchestrator, the five skills it drives, and the builder
-agent, as a Claude Code plugin. It is entirely self-contained — it does not read anything from
+This repo is the **hub**. It ships the orchestrator and the six skills it drives, as a Claude Code
+plugin. It is entirely self-contained — it does not read anything from
 `~/.claude` and nothing here needs to stay in sync with your global setup.
 
 Your project repos are the **spokes**. `/foundry` runs *inside* a spoke, and every issue, branch
@@ -69,7 +70,7 @@ Checked in Phase 0, all refuse-to-run:
 
 - you are inside the repo, and the working tree is clean
 - `.claude/` is gitignored (builder worktrees live at `.claude/worktrees/`)
-- `gh` is authenticated, and the repo has the `ready-for-agent` / `ready-for-human` labels
+- `gh` is authenticated (the `ready-for-agent` / `ready-for-human` labels are created if missing)
 - GitHub **issue dependencies** are readable — this is how blocked tickets are told from ready ones
 - **`foundry.config.json`** declares the gate commands: `{"verify":["npm run typecheck","npm test"]}`.
   This is how the program knows what "green" means; it will not guess.
@@ -78,12 +79,24 @@ Checked in Phase 0, all refuse-to-run:
 
 | Path | What it is |
 |---|---|
-| `plugin/skills/foundry/` | the orchestrator — phases, the build loop, the stop conditions |
+| `plugin/skills/foundry/` | the attended half — preflight, grilling, the spec gate, the hand-off |
 | `plugin/skills/foundry/references/tracker.md` | the GitHub issue conventions, and the `gh` commands |
 | `plugin/skills/{grilling,to-spec,to-tickets,implement}/` | the four pipeline stages |
 | `plugin/skills/tdd/` | the testing discipline `implement` works to |
 | `orchestrator/` | the unattended half: the Agent SDK program that runs phases 3-5 |
-| `orchestrator/src/frontier.ts` | which tickets can be built right now — the whole scheduler |
+| `orchestrator/src/frontier.ts` | which tickets can be built right now, and which together — the whole scheduler |
+| `orchestrator/src/review.ts` | the second model that checks each ticket, and can only say no |
+
+## What happens to each ticket
+
+A builder writes it, test-first, in its own worktree. A second model — not the one that wrote it,
+and never shown its account of the work — then checks it against the ticket's acceptance criteria
+and the spec. That review can only reject: a criterion not met, a blocking defect, or no verdict
+at all hands the ticket back. Only then is it merged into the run's branch and the repo's gates
+run on the result.
+
+Tickets that declare the same files are never built in the same round, so parallel builders do
+not write two versions of one function for a model to reconcile at merge time.
 
 ## How the loop terminates
 
@@ -98,7 +111,7 @@ Every round either closes a ticket or trips a check. There are exactly three way
 A clean **done** run merges its own PR — `--merge`, `--delete-branch`, so the per-ticket commits
 survive. It merges only when all four of these hold:
 
-1. every ticket closed, none handed back
+1. every ticket closed — reviewed, merged and green — none handed back
 2. typecheck and the full suite green on the integration branch after the last merge
 3. `gh pr checks` green (a repo with no CI passes trivially — there is nothing to be red)
 4. you did not pass `--no-merge`

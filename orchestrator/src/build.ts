@@ -2,7 +2,7 @@ import { agent } from "./agent.js";
 import { review } from "./review.js";
 import { BUILDER_MODEL, MAX_PARALLEL, STALL_ROUNDS } from "./config.js";
 import { tryShell } from "./sh.js";
-import { frontier, open, stranded } from "./frontier.js";
+import { batch as roundOf, frontier, open, overlaps, stranded } from "./frontier.js";
 import * as git from "./git.js";
 import * as gh from "./gh.js";
 import type { BuilderReport, RunResult, SpokeConfig, Ticket, TicketOutcome } from "./types.js";
@@ -165,7 +165,8 @@ function builderPrompt(t: Ticket, spec: number, integration: string, branch: str
     `Follow the /foundry:implement skill, which works test-first through the /foundry:tdd skill.`,
     `Read the ticket with: gh issue view ${t.number} --comments`,
     `Read the spec with:   gh issue view ${spec} --comments`,
-    `The spec's Testing Decisions name your seams and the exported symbols under test. Use those names exactly.`,
+    `The spec's Shared Interfaces and Testing Decisions name your seams, exported symbols and signatures.`,
+    `Use those names exactly: other builders are writing against the same names right now.`,
     ``,
     `You are in your own git worktree, cut from "${integration}". Other builders are working on other`,
     `tickets in their own worktrees right now. Only your own branch is safe to touch.`,
@@ -383,8 +384,10 @@ export async function buildLoop(opts: {
     }
 
     round += 1;
-    const batch = ready.slice(0, cap);
+    const batch = roundOf(ready, cap);
     log(`round ${round}: building ${batch.map((t) => `#${t.number}`).join(", ")} (${ready.length} ready, cap ${cap})`);
+    const held = ready.filter((t) => !batch.includes(t) && batch.some((c) => overlaps(c.touches, t.touches)));
+    for (const t of held) log(`  #${t.number} held: touches the same files as a ticket in this round`);
 
     // Claim before dispatch: the assignee is what keeps the next round off these tickets.
     for (const t of batch) await gh.claim(t.number, repoDir);

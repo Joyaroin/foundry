@@ -27,6 +27,7 @@ only say no; everything else is a function call.
 | Whether a built ticket is good enough | **model can only reject** (`review.ts`); code rejects on any unmet criterion, any blocking finding, a missing verdict, or a moved branch |
 | Which tickets are eligible right now | code — `frontier.ts` |
 | How many run at once | code — `MAX_PARALLEL`, `config.ts` |
+| Which ready tickets share a round | code — `batch()` in `frontier.ts`, from the files each ticket declared |
 | Which issue is claimed, closed, or handed back | code — `gh.ts` |
 | What merges into the integration branch | code — `git.ts` |
 | Whether the result is green | code — the spoke's declared `verify` commands |
@@ -46,7 +47,7 @@ agent is explicitly forbidden from touching the tracker: it writes JSON, the pro
 | `ship.ts` | the pull request and the four-condition merge decision |
 | `tickets.ts` | spec to tickets: one agent call, then deterministic publishing |
 | `review.ts` | the veto: a second model checks each built ticket against its criteria |
-| `frontier.ts` | which tickets are buildable — the entire scheduler, 3 functions |
+| `frontier.ts` | which tickets are buildable, and which can share a round — the entire scheduler |
 | `gh.ts` | every GitHub mutation the run performs |
 | `git.ts` | branches, worktrees, merges, and the verify gates |
 | `agent.ts` | the one place `query()` is called |
@@ -168,6 +169,27 @@ The setting is now `['project']`. Probed 2026-09-02 against SDK 0.3.250, with a 
 a scratch repo: `[]` saw nothing, `['project']` saw the repo's `CLAUDE.md` and not `~/.claude/CLAUDE.md`,
 and `['user','project']` saw both — so the middle result is a real exclusion, not a blind probe.
 Discovery also works from a worktree nested under `.claude/worktrees/`.
+
+## Tickets that edit the same files wait for each other
+
+The ticket writer lists the files each ticket will change, and the program writes them into the
+issue body under a `<!-- foundry:touches -->` marker. Each round takes ready tickets in order and
+skips any whose files overlap one already chosen; a skipped ticket is logged as `held` and is
+first in line next round. The first ready ticket is always taken, so holding never empties a round.
+
+Append-only files every ticket adds to — a changelog — are left off the list on purpose; the
+conflict step reconciles those, and listing them would serialize the whole run. A ticket written
+before this existed declares nothing and schedules as it always did.
+
+## Tests
+
+```bash
+npm test
+```
+
+Covers the decisions that need no network: the frontier and round selection, the backwards-edge
+rule, the declared-files round trip, the review verdict, and the first two merge conditions. The
+rest — GitHub, git, the agents — is exercised by running against `harness-fixture`.
 
 ## Cleaning up worktrees
 

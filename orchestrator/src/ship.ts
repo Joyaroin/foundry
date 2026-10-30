@@ -8,6 +8,16 @@ import type { RunResult, SpokeConfig } from "./types.js";
  * The merge decision is four boolean checks, all evaluated here. No model is consulted,
  * and a refusal from GitHub is reported rather than routed around: never --admin, never force.
  */
+/** Conditions 1 and 2, which need nothing but the run's own outcome. */
+export function refusal(loop: Pick<RunResult, "stop" | "handedBack">, noMerge: boolean): string | undefined {
+  // 1. A clean run only.
+  if (loop.stop !== "done") return `run stopped on ${loop.stop}, not done`;
+  if (loop.handedBack.length > 0) return `${loop.handedBack.length} ticket(s) were handed back`;
+  // 2. Adham's opt-out.
+  if (noMerge) return "--no-merge";
+  return undefined;
+}
+
 export async function ship(opts: {
   spec: number;
   repoDir: string;
@@ -46,18 +56,9 @@ export async function ship(opts: {
 
   const result: RunResult = { ...loop, prNumber: pr, merged: false };
 
-  // 1. A clean run only.
-  if (loop.stop !== "done") {
-    result.mergeSkippedBecause = `run stopped on ${loop.stop}, not done`;
-    return result;
-  }
-  if (loop.handedBack.length > 0) {
-    result.mergeSkippedBecause = `${loop.handedBack.length} ticket(s) were handed back`;
-    return result;
-  }
-  // 2. Adham's opt-out.
-  if (noMerge) {
-    result.mergeSkippedBecause = "--no-merge";
+  const refused = refusal(loop, noMerge);
+  if (refused) {
+    result.mergeSkippedBecause = refused;
     return result;
   }
   // 3. The gates, on the final integration branch.

@@ -308,6 +308,7 @@ const RE = {
   wt:     /^ {2}#(\d+) worktree cut from (.+)$/,
   setup:  /^ {2}#(\d+) setup: (.+)$/,
   start:  /^ {2}#(\d+) builder started on (.+)$/,
+  held:   /^ {2}#(\d+) held: (.+)$/,
   say:    /^ {2}#(\d+) \| (.*)$/,
   fin:    /^ {2}#(\d+) builder finished in (\S+) \((.*)\)$/,
   rev:    /^ {2}#(\d+) review started$/,
@@ -361,6 +362,10 @@ function feed(raw){
   if (hit = msg.match(RE.setup)){
     const t = ticket(hit[1]); t.phase = "setup"; t.chip = "setup"; t.setups.push(hit[2]); t.say = hit[2];
     return { cls:"", ts:m[1], badge:"#"+hit[1], text:"setup · " + hit[2] };
+  }
+  if (hit = msg.match(RE.held)){
+    const t = ticket(hit[1]); t.chip = "held"; t.say = hit[2];
+    return { cls:"", ts:m[1], badge:"#"+hit[1], text:"held — " + hit[2] };
   }
   if (hit = msg.match(RE.start)){
     const t = ticket(hit[1]);

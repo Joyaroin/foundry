@@ -8,6 +8,11 @@ export type Ticket = {
   assignee: string | null;
   labels: string[];
   state: "open" | "closed";
+  /**
+   * Repo-relative files and directories the ticket expects to change, declared when it was
+   * written. Empty for a ticket written before foundry recorded them, which schedules as before.
+   */
+  touches: string[];
 };
 
 /**

@@ -6,7 +6,7 @@ Attended through the spec, unattended after it. See `README.md` for the shape.
 
 ## Status
 
-v0.2.0. Proven end to end against `harness-fixture` on 2026-08-31 — see **Proven** below for what
+v0.3.0. Proven end to end against `harness-fixture` on 2026-08-31 — see **Proven** below for what
 that run actually covered. Never exercised: the merge path (`--no-merge` on every run so far), and
 any spoke with real dependencies or a database. The review step (`review.ts`, added 2026-10-29)
 has been run against a scratch repo — it rejected a missing criterion and a test that could not

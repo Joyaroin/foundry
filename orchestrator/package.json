@@ -1,6 +1,6 @@
 {
   "name": "@joyaroin/foundry",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "The unattended half of the foundry pipeline: spec -> tickets -> parallel build -> PR -> merge.",
@@ -9,7 +9,8 @@
   },
   "scripts": {
     "foundry": "tsx src/cli.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/*.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.250"

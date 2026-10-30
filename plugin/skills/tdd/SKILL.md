@@ -21,7 +21,7 @@ A **seam** is the public boundary you test at: the interface where you observe b
 
 **Test only at pre-agreed seams.** No test is written at an unconfirmed seam. You can't test everything — agreeing the seams up front is how testing effort lands on the critical paths and complex logic instead of every edge case.
 
-**Inside a foundry run the seams are already agreed.** The spec's **Testing Decisions** named them, and named the exported symbols under test, back when Adham approved it. Use those names exactly — do not re-confirm them, and do not ask anyone. A builder runs unattended; a question here stalls the whole round.
+**Inside a foundry run the seams are already agreed.** The spec's **Testing Decisions** named them, and its **Shared Interfaces** named the exported symbols and their signatures, back when Adham approved it. Use those names exactly — do not re-confirm them, and do not ask anyone. A builder runs unattended; a question here stalls the whole round.
 
 If the spec's Testing Decisions do not name a seam you need, that is a defect in the spec. Say so in your report and stop — do not invent a seam and do not quietly test somewhere else. Outside a foundry run, with a human present, write the seams down and confirm them before the first test.
 

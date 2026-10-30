@@ -23,6 +23,8 @@ type Draft = {
     body: string;
     /** Positions (1-based) of tickets earlier in this same array that must close first. */
     blockedBy: number[];
+    /** Files and directories it expects to change. Keeps overlapping tickets out of one round. */
+    touches: string[];
   }[];
 };
 
@@ -42,7 +44,7 @@ const DRAFT_SCHEMA: Record<string, unknown> = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["title", "body", "blockedBy"],
+        required: ["title", "body", "blockedBy", "touches"],
         properties: {
           title: { type: "string", description: "Short descriptive ticket title." },
           body: {
@@ -58,6 +60,15 @@ const DRAFT_SCHEMA: Record<string, unknown> = {
               "1-based positions in this same tickets array. Must be EARLIER than this ticket's own " +
               "position. Empty means it can start immediately.",
           },
+          touches: {
+            type: "array",
+            minItems: 1,
+            items: { type: "string" },
+            description:
+              "Repo-relative files or directories this ticket will create or change, tests included. " +
+              "Leave out append-only files every ticket adds to, such as a changelog — the merge step " +
+              "reconciles those. Two tickets that list the same file are never built at the same time.",
+          },
         },
       },
     },
@@ -69,7 +80,7 @@ const DRAFT_SCHEMA: Record<string, unknown> = {
  * than order the list: it makes a dependency cycle unrepresentable, so the loop cannot be handed
  * a graph that deadlocks it.
  */
-function assertBackwardEdges(draft: Draft): void {
+export function assertBackwardEdges(draft: Pick<Draft, "tickets">): void {
   draft.tickets.forEach((t, i) => {
     for (const b of t.blockedBy) {
       if (b > draft.tickets.length) {
@@ -106,6 +117,10 @@ export async function writeTickets(spec: number, repoDir: string): Promise<numbe
     `Every ticket is a vertical slice: a complete path through every layer, demoable on its own,`,
     `and small enough to fit in one fresh context window.`,
     ``,
+    `Name every interface exactly as the spec's Shared Interfaces section does. List in touches the`,
+    `files each ticket will change: tickets that share a file are built one after another, not side by`,
+    `side, so an honest list is what keeps parallel builders from colliding.`,
+    ``,
     `If the spec does not settle a decision some ticket needs, do not invent it: set specDefect to`,
     `the missing decision and return no tickets.`,
   ].join("\n");
@@ -136,7 +151,8 @@ export async function writeTickets(spec: number, repoDir: string): Promise<numbe
 
   // Published in order, so every blocker already exists when its edge is recorded.
   for (const t of draft.tickets) {
-    const n = await gh.createIssue({ title: t.title, body: t.body, labels: [LABEL_READY] }, repoDir);
+    const body = `${t.body}\n\n${gh.touchesBlock(t.touches)}`;
+    const n = await gh.createIssue({ title: t.title, body, labels: [LABEL_READY] }, repoDir);
     numbers.push(n);
     await gh.addSubIssue(repo, spec, n, repoDir);
   }
